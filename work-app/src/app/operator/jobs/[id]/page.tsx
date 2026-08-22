@@ -12,11 +12,11 @@ export default async function OperatorJobPage({ params, searchParams }: { params
   const query = await searchParams
   let job: any
   try { job = await getOperatorJob(id) } catch { notFound() }
-  const map = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`
+  const waze = `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes`
   return <div className="page narrow stack-lg operator-job">
     <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name}</h1></div><StatusBadge status={job.status as JobStatus} /></div>
     {query.error && <div className="alert danger">Salvestamine ei õnnestunud. Proovi uuesti.</div>}
-    <section className="detail-card important"><p className="operator-address">{job.address}</p><div className="action-grid two"><a className="button secondary" href={map} target="_blank" rel="noreferrer">Navigeeri</a>{job.customer?.phone && <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a>}</div></section>
+    <section className="detail-card important"><p className="operator-address">{job.address}</p><div className="action-grid two"><a className="button secondary" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>{job.customer?.phone && <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a>}</div></section>
     <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
     {['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
     {job.status === 'toob' && <>
