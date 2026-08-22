@@ -1,0 +1,29 @@
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { getOperatorJob } from '@/lib/queries'
+import { StatusBadge } from '@/components/StatusBadge'
+import { ElapsedTimer } from '@/components/ElapsedTimer'
+import { PhotoUploader } from '@/components/PhotoUploader'
+import { saveWorkNote, startJob } from '../actions'
+import type { JobStatus } from '@/lib/domain'
+
+export default async function OperatorJobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const { id } = await params
+  const query = await searchParams
+  let job: any
+  try { job = await getOperatorJob(id) } catch { notFound() }
+  const map = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`
+  return <div className="page narrow stack-lg operator-job">
+    <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name}</h1></div><StatusBadge status={job.status as JobStatus} /></div>
+    {query.error && <div className="alert danger">Salvestamine ei õnnestunud. Proovi uuesti.</div>}
+    <section className="detail-card important"><p className="operator-address">{job.address}</p><div className="action-grid two"><a className="button secondary" href={map} target="_blank" rel="noreferrer">Navigeeri</a>{job.customer?.phone && <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a>}</div></section>
+    <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
+    {['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
+    {job.status === 'toob' && <>
+      <ElapsedTimer startedAt={job.actual_start} />
+      <section className="detail-card"><h2>Dokumenteeri töö</h2><PhotoUploader jobId={job.id} /><div className="photo-count">Fotosid: <strong>{job.job_photos?.length ?? 0}</strong></div><form action={saveWorkNote} className="stack"><input type="hidden" name="id" value={job.id} /><label>Lühimärkus<textarea name="operatorNote" rows={2} defaultValue={job.operator_note ?? ''} placeholder="Ainult kui midagi on vaja märkida" /></label><button className="button secondary wide">Salvesta märkus</button></form></section>
+      <Link className="button finish wide giant" href={`/operator/jobs/${job.id}/finish`}>LÕPETA TÖÖ</Link>
+    </>}
+    {['tehtud','vajab_jareltegevust'].includes(job.status) && <section className="detail-card"><h2>Töö on lõpetatud</h2><p>Tegelik läbisõit: <strong>{job.actual_km ?? 'puudub'} km</strong></p><p>Fotod: <strong>{job.job_photos?.length ?? 0}</strong></p><Link className="button secondary wide" href="/operator">Tagasi tänasesse vaatesse</Link></section>}
+  </div>
+}
