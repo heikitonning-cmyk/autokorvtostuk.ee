@@ -28,10 +28,20 @@ export type StopOrderItem = {
   status: JobStopStatus
 }
 
-function SortableStop({ stop, onDescriptionSave }: { stop: StopOrderItem; onDescriptionSave?: (stopId: string, description: string) => void }) {
+function SortableStop({ stop, onDescriptionSave, onRemove }: {
+  stop: StopOrderItem
+  onDescriptionSave?: (stopId: string, description: string) => void
+  onRemove?: (stopId: string) => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stop.id })
   const [description, setDescription] = useState(stop.description ?? '')
   useEffect(() => setDescription(stop.description ?? ''), [stop.description])
+
+  function confirmRemove() {
+    if (!onRemove) return
+    const name = stop.name_snapshot || stop.address_snapshot
+    if (window.confirm(`Eemaldada peatus „${name}“ marsruudist?`)) onRemove(stop.id)
+  }
 
   return <div ref={setNodeRef} className="detail-card stack" style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.65 : 1 }}>
     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -42,6 +52,7 @@ function SortableStop({ stop, onDescriptionSave }: { stop: StopOrderItem; onDesc
       <label>Peatuse töö<textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Soovi korral täpsusta, mida siin teha" /></label>
       <button type="button" className="button secondary wide" onClick={() => onDescriptionSave(stop.id, description)}>Salvesta peatuse töö</button>
     </div>}
+    {onRemove && <button type="button" className="button danger-outline wide" onClick={confirmRemove}>Eemalda</button>}
   </div>
 }
 
@@ -54,10 +65,11 @@ function FixedStop({ stop }: { stop: StopOrderItem }) {
   </div>
 }
 
-export function StopOrderEditor({ stops, onReorder, onDescriptionSave }: {
+export function StopOrderEditor({ stops, onReorder, onDescriptionSave, onRemove }: {
   stops: StopOrderItem[]
   onReorder: (pendingStopIds: string[]) => void
   onDescriptionSave?: (stopId: string, description: string) => void
+  onRemove?: (stopId: string) => void
 }) {
   const sorted = useMemo(() => [...stops].sort((a, b) => a.sequence_no - b.sequence_no), [stops])
   const initialPending = useMemo(() => sorted.filter((stop) => stop.status === 'pending').map((stop) => stop.id), [sorted])
@@ -92,7 +104,7 @@ export function StopOrderEditor({ stops, onReorder, onDescriptionSave }: {
   return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
     <SortableContext items={pendingIds} strategy={verticalListSortingStrategy}>
       <div className="stack">{displayRows.map((stop) => stop.status === 'pending'
-        ? <SortableStop key={stop.id} stop={stop} onDescriptionSave={onDescriptionSave} />
+        ? <SortableStop key={stop.id} stop={stop} onDescriptionSave={onDescriptionSave} onRemove={onRemove} />
         : <FixedStop key={stop.id} stop={stop} />)}</div>
     </SortableContext>
   </DndContext>
