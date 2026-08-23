@@ -102,7 +102,7 @@ export function StopPicker({ sites, onAdd }: { sites: SiteOption[]; onAdd: (draf
     {regions.length > 1 && <label>Piirkond<select value={region} onChange={(event) => setRegion(event.target.value)}><option value="">Kõik</option>{regions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>}
 
     <div className="stack">
-      {visible.map((site) => <label key={site.id} className="detail-card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      {visible.map((site) => <label key={site.id} className="detail-card site-option" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <input type="checkbox" checked={selectedSiteIds.has(site.id)} onChange={() => toggle(site)} disabled={!site.address?.trim()} />
         <span><strong>{site.name}</strong><small className="muted" style={{ display: 'block' }}>{site.address || 'Aadress puudub'}</small></span>
       </label>)}
