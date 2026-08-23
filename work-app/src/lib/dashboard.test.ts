@@ -21,6 +21,14 @@ test('manager summary uses actual total when available', () => {
   assert.equal(result.todayRevenue, 90 + 135 + 160 + 210)
 })
 
+test('unscheduled confirmed job is not treated as overdue', () => {
+  const result = managerSummary([
+    { id: 'x', status: 'kinnitatud', start_planned: null, estimated_total: null, actual_total: null } as any,
+  ], new Date('2026-08-22T10:30:00+03:00'))
+  assert.equal(result.overdueNotStarted.length, 0)
+  assert.equal(result.todayJobs.length, 0)
+})
+
 test('free capacity shows next seven days with at least two hours available', async () => {
   const { freeCapacityDays } = await import('./dashboard.ts')
   const result = freeCapacityDays([
