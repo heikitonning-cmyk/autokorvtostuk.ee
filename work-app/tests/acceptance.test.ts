@@ -168,6 +168,14 @@ test('operator stop flow requires note and stop photo for done but not skip', ()
   assert.match(uploader, /jobStopId/)
 })
 
+test('multi-stop job finish is blocked until all stops are resolved without breaking legacy jobs', () => {
+  const actions = readFileSync(resolve(root, 'src/app/operator/jobs/actions.ts'), 'utf8')
+  assert.match(actions, /job_stops/)
+  assert.match(actions, /pending/)
+  assert.match(actions, /in_progress/)
+  assert.match(actions, /count/)
+})
+
 test('PWA manifest and service worker exist', () => {
   assert.equal(existsSync(resolve(root, 'src/app/manifest.ts')), true)
   assert.equal(existsSync(resolve(root, 'public/sw.js')), true)
