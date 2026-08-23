@@ -14,6 +14,7 @@ test('v1 contains the critical manager and operator routes', () => {
     'src/app/manager/settings/page.tsx',
     'src/app/manager/users/page.tsx',
     'src/app/operator/page.tsx',
+    'src/app/operator/calendar/page.tsx',
     'src/app/operator/jobs/[id]/page.tsx',
     'src/app/operator/jobs/[id]/finish/page.tsx',
     'src/app/register/[token]/page.tsx',
@@ -34,6 +35,14 @@ test('worker landing page offers self-service claim and release', () => {
   assert.match(page, /Minu tööd/)
   assert.match(card, /VÕTA TÖÖ/)
   assert.match(card, /Vabasta töö/)
+})
+
+test('worker calendar shows shared lift availability and navigation', () => {
+  const page = readFileSync(resolve(root, 'src/app/operator/calendar/page.tsx'), 'utf8')
+  const shell = readFileSync(resolve(root, 'src/components/AppShell.tsx'), 'utf8')
+  assert.match(page, /Vabad aknad · 7 päeva/)
+  assert.match(page, /freeCapacityDays/)
+  assert.match(shell, /href="\/operator\/calendar"[^>]*>Kalender</)
 })
 
 test('PWA manifest and service worker exist', () => {
