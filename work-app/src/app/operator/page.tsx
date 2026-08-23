@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireView } from '@/lib/session'
-import { getSharedLiftCalendar, getWorkerJobs } from '@/lib/queries'
+import { getSharedLiftCalendar } from '@/lib/queries'
 import { freeCapacityDays } from '@/lib/dashboard'
 import { formatPlannedTime } from '@/lib/jobs'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -26,9 +26,10 @@ function longDate(date: string) {
 }
 
 function PlanJobCard({ job }: { job: any }) {
-  const name = job.object_name || job.customer_name || job.customer?.name || 'Töö'
-  const workType = job.work_type_name || job.work_type?.name || 'Tööliik määramata'
-  const canRelease = job.is_mine && !['toob', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
+  const name = job.object_name || job.customer_name || 'Töö'
+  const workType = job.work_type_name || 'Tööliik määramata'
+  const editable = !['tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
+  const canRelease = job.is_mine && editable && job.status !== 'toob'
 
   return <div className="job-card">
     <div className="job-card-top">
@@ -36,26 +37,29 @@ function PlanJobCard({ job }: { job: any }) {
       <StatusBadge status={job.status as JobStatus} />
     </div>
     <div className="job-address">{job.address || 'Aadress määramata'}</div>
-    <div className="job-meta"><span>{workType}</span></div>
+    <div className="job-meta"><span>{workType}</span>{!job.is_free && !job.is_mine && <span>Hõivatud</span>}</div>
 
-    {job.is_free ? <form action={claimJob} className="top-gap">
-      <input type="hidden" name="id" value={job.id} />
-      <button className="button primary wide" type="submit">VÕTA TÖÖ</button>
-    </form> : job.is_mine ? <div className="stack top-gap">
+    {job.is_free && editable ? <div className="stack top-gap">
+      <form action={claimJob}>
+        <input type="hidden" name="id" value={job.id} />
+        <button className="button primary wide" type="submit">VÕTA TÖÖ</button>
+      </form>
+      <Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>
+    </div> : job.is_mine ? <div className="stack top-gap">
       <Link className="button primary wide" href={`/operator/jobs/${job.id}`}>{job.status === 'toob' ? 'JÄTKA TÖÖD' : 'AVA TÖÖ'}</Link>
+      {editable && <Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>}
       {canRelease && <form action={releaseJob}>
         <input type="hidden" name="id" value={job.id} />
         <button className="button secondary wide" type="submit">Vabasta töö</button>
       </form>}
-    </div> : <div className="job-meta"><span>Hõivatud</span></div>}
+    </div> : editable ? <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link></div> : null}
   </div>
 }
 
 export default async function OperatorPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await requireView('worker')
-  const [jobs, { freeJobs, mineJobs }, params] = await Promise.all([
+  await requireView('worker')
+  const [jobs, params] = await Promise.all([
     getSharedLiftCalendar(),
-    getWorkerJobs(user.id),
     searchParams,
   ])
   const errorText = Array.isArray(params.error) ? params.error[0] : params.error
@@ -78,10 +82,7 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     if (date) groups.set(date, [...(groups.get(date) ?? []), job])
   }
 
-  const unscheduled = [
-    ...freeJobs.filter((job: any) => !job.start_planned && !job.planned_date).map((job: any) => ({ ...job, is_free: true, is_mine: false })),
-    ...mineJobs.filter((job: any) => !job.start_planned && !job.planned_date).map((job: any) => ({ ...job, is_free: false, is_mine: true })),
-  ]
+  const unscheduled = jobs.filter((job: any) => !job.start_planned && !job.planned_date)
 
   return <div className="page stack-lg operator-page">
     <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Ühe tõstuki ühine tööplaan ja vabad ajad.</p></div>
