@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireView } from '@/lib/session'
-import { getOperatorJob } from '@/lib/queries'
+import { getCustomerSites, getOperatorJob } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ElapsedTimer } from '@/components/ElapsedTimer'
 import { PhotoUploader } from '@/components/PhotoUploader'
 import { ActiveStopCard } from '@/components/ActiveStopCard'
+import { JobStopsEditor } from '@/components/JobStopsEditor'
 import { saveWorkNote, startJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
@@ -18,6 +19,7 @@ const stopErrorText: Record<string, string> = {
   'photo-required': 'Peatuse märkimiseks tehtuks lisa vähemalt üks foto.',
   'stop-state': 'Peatuse olek muutus. Värskendasin töö — proovi uuesti.',
   'not-assigned': 'Seda peatust saab teostada ainult töö võtnud kasutaja.',
+  'stale-route': 'Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.',
 }
 
 export default async function OperatorJobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -36,6 +38,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
   const stopsResolved = hasStops && canFinishStops(stops)
   const rawError = Array.isArray(query.error) ? query.error[0] : query.error
   const errorMessage = rawError ? (stopErrorText[rawError] ?? 'Salvestamine ei õnnestunud. Proovi uuesti.') : null
+  const sites = editable && hasStops ? await getCustomerSites() : []
 
   return <div className="page narrow stack-lg operator-job">
     <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{planned}</p></div><div className="stack"><StatusBadge status={job.status as JobStatus} />{editable && <Link className="button secondary" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>}</div></div>
@@ -53,6 +56,15 @@ export default async function OperatorJobPage({ params, searchParams }: { params
 
     {hasStops && currentStop && <ActiveStopCard jobId={job.id} stop={currentStop} canOperate={isMine && job.status === 'toob'} />}
     {hasStops && !currentStop && stopsResolved && <section className="detail-card important"><h2>Kõik peatused on lahendatud</h2><p>Võid tööpäeva lõpetada.</p></section>}
+
+    {editable && hasStops && <JobStopsEditor
+      sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
+      stops={stops}
+      jobId={job.id}
+      routeRevision={job.route_revision ?? 0}
+      routeStartAddress={job.route_start_address ?? ''}
+      routeEndAddress={job.route_end_address ?? ''}
+    />}
 
     {isMine && job.status === 'toob' && !hasStops && <>
       <ElapsedTimer startedAt={job.actual_start} />
