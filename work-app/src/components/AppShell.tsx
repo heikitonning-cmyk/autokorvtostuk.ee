@@ -22,6 +22,7 @@ export function AppShell({ user, view, children }: { user: AppUser; view: AppVie
           <Link href="/manager">Juhtimispult</Link>
           <Link href="/manager/calendar">Kalender</Link>
           <Link href="/manager/customers">Kliendid</Link>
+          <Link href="/manager/users">Kasutajad</Link>
           <Link href="/manager/settings">Seaded</Link>
         </> : <>
           <Link href="/operator">Tööd</Link>
