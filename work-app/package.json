@@ -8,7 +8,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:cf": "opennextjs-cloudflare build",
     "start": "next start",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:geocode-throttle": "wrangler deploy -c cloudflare/geocode-throttle/wrangler.jsonc",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "typecheck": "tsc --noEmit",
     "test:core": "node --experimental-strip-types --test src/lib/*.test.ts src/lib/routing/*.test.ts tests/*.test.ts",
     "test": "npm run test:core"
@@ -28,7 +33,8 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "wrangler": "4.125.0"
   },
   "type": "module"
 }
