@@ -21,6 +21,11 @@ test('empty planned datetime normalizes to null', () => {
   assert.equal((jobsModule as any).optionalIsoDateTime(''), null)
 })
 
+test('planned datetime-local is interpreted in Tallinn time', () => {
+  assert.ok('optionalIsoDateTime' in jobsModule, 'optionalIsoDateTime must exist')
+  assert.equal((jobsModule as any).optionalIsoDateTime('2026-08-23T10:00'), '2026-08-23T07:00:00.000Z')
+})
+
 test('missing planned time is shown as Aeg määramata', () => {
   assert.ok('formatPlannedTime' in jobsModule, 'formatPlannedTime must exist')
   assert.equal((jobsModule as any).formatPlannedTime(null), 'Aeg määramata')
