@@ -12,16 +12,28 @@ test('v1 contains the critical manager and operator routes', () => {
     'src/app/manager/calendar/page.tsx',
     'src/app/manager/customers/page.tsx',
     'src/app/manager/settings/page.tsx',
+    'src/app/manager/users/page.tsx',
     'src/app/operator/page.tsx',
     'src/app/operator/jobs/[id]/page.tsx',
     'src/app/operator/jobs/[id]/finish/page.tsx',
+    'src/app/register/[token]/page.tsx',
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
 })
 
-test('new job form exposes separate date and time controls', () => {
+test('new job form exposes separate date and time controls without operator assignment', () => {
   const page = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
   assert.match(page, /name="plannedDate"[^>]*type="date"/)
   assert.match(page, /name="plannedTime"[^>]*type="time"/)
+  assert.doesNotMatch(page, /name="operatorId"/)
+})
+
+test('worker landing page offers self-service claim and release', () => {
+  const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
+  const card = readFileSync(resolve(root, 'src/components/OperatorJobCard.tsx'), 'utf8')
+  assert.match(page, /Vabad tööd/)
+  assert.match(page, /Minu tööd/)
+  assert.match(card, /VÕTA TÖÖ/)
+  assert.match(card, /Vabasta töö/)
 })
 
 test('PWA manifest and service worker exist', () => {
