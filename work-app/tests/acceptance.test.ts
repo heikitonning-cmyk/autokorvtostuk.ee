@@ -9,6 +9,7 @@ test('v1 contains the critical manager and operator routes', () => {
   for (const path of [
     'src/app/manager/page.tsx',
     'src/app/manager/jobs/new/page.tsx',
+    'src/app/manager/jobs/[id]/edit/page.tsx',
     'src/app/manager/calendar/page.tsx',
     'src/app/manager/customers/page.tsx',
     'src/app/manager/settings/page.tsx',
@@ -16,6 +17,7 @@ test('v1 contains the critical manager and operator routes', () => {
     'src/app/operator/page.tsx',
     'src/app/operator/calendar/page.tsx',
     'src/app/operator/jobs/[id]/page.tsx',
+    'src/app/operator/jobs/[id]/edit/page.tsx',
     'src/app/operator/jobs/[id]/finish/page.tsx',
     'src/app/register/[token]/page.tsx',
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
@@ -26,6 +28,24 @@ test('new job form exposes separate date and time controls without operator assi
   assert.match(page, /name="plannedDate"[^>]*type="date"/)
   assert.match(page, /name="plannedTime"[^>]*type="time"/)
   assert.doesNotMatch(page, /name="operatorId"/)
+})
+
+test('manager and worker can open edit forms for unfinished jobs', () => {
+  const managerDetail = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
+  const workerDetail = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
+  const managerEdit = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/edit/page.tsx'), 'utf8')
+  const workerEdit = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/edit/page.tsx'), 'utf8')
+  assert.match(managerDetail, /Muuda/)
+  assert.match(managerDetail, /\/manager\/jobs\/\$\{job\.id\}\/edit/)
+  assert.match(workerDetail, /Muuda/)
+  assert.match(workerDetail, /\/operator\/jobs\/\$\{job\.id\}\/edit/)
+  for (const page of [managerEdit, workerEdit]) {
+    assert.match(page, /name="plannedDate"[^>]*type="date"/)
+    assert.match(page, /name="plannedTime"[^>]*type="time"/)
+    assert.match(page, /name="customerId"/)
+    assert.match(page, /name="estimatedHours"/)
+    assert.match(page, /Salvesta muudatused/)
+  }
 })
 
 test('worker job controls still support self-service claim and release', () => {
