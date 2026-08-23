@@ -63,3 +63,9 @@ export class GeocodeThrottle {
     })
   }
 }
+
+export default {
+  async fetch(): Promise<Response> {
+    return Response.json({ error: 'not-found' }, { status: 404 })
+  },
+}
