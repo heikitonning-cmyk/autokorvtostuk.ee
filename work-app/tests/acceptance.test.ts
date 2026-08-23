@@ -142,6 +142,18 @@ test('multi-stop editor supports search, many selected sites and mobile reorder'
   assert.match(order, /SortableContext/)
 })
 
+test('manager and worker edit flows expose shared multi-stop planning actions', () => {
+  const actions = readFileSync(resolve(root, 'src/app/job-stop-actions.ts'), 'utf8')
+  const managerActions = readFileSync(resolve(root, 'src/app/manager/jobs/actions.ts'), 'utf8')
+  assert.match(actions, /add_job_stops/)
+  assert.match(actions, /reorder_job_stops/)
+  assert.match(actions, /update_job_route_endpoints/)
+  assert.match(managerActions, /initialStopsJson/)
+  assert.match(managerActions, /add_job_stops/)
+  const form = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
+  assert.match(form, /JobStopsEditor/)
+})
+
 test('PWA manifest and service worker exist', () => {
   assert.equal(existsSync(resolve(root, 'src/app/manifest.ts')), true)
   assert.equal(existsSync(resolve(root, 'public/sw.js')), true)
