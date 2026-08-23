@@ -73,7 +73,9 @@ export default async function OperatorJobPage({ params, searchParams }: { params
       stops={stops}
       jobId={job.id}
       routeRevision={job.route_revision ?? 0}
+      routeStartSiteId={job.route_start_site_id ?? ''}
       routeStartAddress={job.route_start_address ?? ''}
+      routeEndSiteId={job.route_end_site_id ?? ''}
       routeEndAddress={job.route_end_address ?? ''}
     />}
 
