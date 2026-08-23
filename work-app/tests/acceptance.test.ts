@@ -72,6 +72,27 @@ test('job forms support customer site selection and new site entry', () => {
   assert.match(edit, /JobLocationFields/)
 })
 
+test('address can be chosen from customer sites while remaining manually editable', () => {
+  const component = readFileSync(resolve(root, 'src/components/JobLocationFields.tsx'), 'utf8')
+  assert.match(component, /name="addressSiteId"/)
+  assert.match(component, /Muu aadress/)
+  assert.match(component, /name="address"/)
+  assert.match(component, /changeAddressSite/)
+  assert.match(component, /site\.address/)
+})
+
+test('manager and worker job details expose address navigation', () => {
+  const manager = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
+  const worker = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
+  for (const page of [manager, worker]) {
+    assert.match(page, /https:\/\/www\.waze\.com\/ul\?q=/)
+    assert.match(page, /navigate=yes/)
+    assert.match(page, /Navigeeri/)
+  }
+  assert.match(manager, /job\.address/)
+  assert.match(worker, /job\.address/)
+})
+
 test('customer CRM lists and adds saved locations', () => {
   const page = readFileSync(resolve(root, 'src/app/manager/customers/page.tsx'), 'utf8')
   const actions = readFileSync(resolve(root, 'src/app/manager/customers/actions.ts'), 'utf8')
