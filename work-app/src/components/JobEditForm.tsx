@@ -60,7 +60,9 @@ export function JobEditForm({
         stops={job.job_stops ?? []}
         jobId={job.id}
         routeRevision={job.route_revision ?? 0}
+        routeStartSiteId={job.route_start_site_id ?? ''}
         routeStartAddress={job.route_start_address ?? ''}
+        routeEndSiteId={job.route_end_site_id ?? ''}
         routeEndAddress={job.route_end_address ?? ''}
       />
       <div className="form-grid three"><label>Kuupäev<input name="plannedDate" type="date" defaultValue={plannedDate} /></label><label>Kellaaeg<input name="plannedTime" type="time" defaultValue={plannedTime} /><small className="muted">Tühi = “Aeg määramata”.</small></label><label>Lõpuaeg<input name="plannedEndTime" type="time" defaultValue={plannedEndTime} /></label></div>
