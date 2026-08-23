@@ -7,7 +7,7 @@ const root = resolve(import.meta.dirname, '..')
 
 test('routing coordinate cache is persisted and only exposed through guarded RPCs', () => {
   const sql = readFileSync(resolve(root, 'supabase/migrations/20260823164000_routing_coordinates_cache.sql'), 'utf8')
-  assert.match(sql, /create table public\.geocode_cache/i)
+  assert.match(sql, /create table(?: if not exists)? public\.geocode_cache/i)
   assert.match(sql, /normalized_address text primary key/i)
   assert.match(sql, /latitude double precision/i)
   assert.match(sql, /longitude double precision/i)
