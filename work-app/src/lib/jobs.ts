@@ -65,15 +65,64 @@ export function optionalIsoDateTime(value: FormDataEntryValue | string | null | 
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
 }
 
-export function formatPlannedTime(value: string | null | undefined): string {
-  if (!value) return 'Aeg määramata'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Aeg määramata'
-  return new Intl.DateTimeFormat('et-EE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Tallinn',
-  }).format(date)
+export function combinePlannedDateTime(
+  dateValue: FormDataEntryValue | string | null | undefined,
+  timeValue: FormDataEntryValue | string | null | undefined,
+): string | null {
+  const date = String(dateValue ?? '').trim()
+  const time = String(timeValue ?? '').trim()
+  if (!date || !time) return null
+  return optionalIsoDateTime(`${date}T${time}`)
+}
+
+export function formatPlannedTime(value: string | null | undefined, plannedTime?: string | null): string {
+  if (value) {
+    const date = new Date(value)
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat('et-EE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Tallinn',
+      }).format(date)
+    }
+  }
+
+  const time = String(plannedTime ?? '').trim()
+  if (/^\d{2}:\d{2}/.test(time)) return time.slice(0, 5)
+  return 'Aeg määramata'
+}
+
+export function formatPlannedSchedule(
+  startPlanned: string | null | undefined,
+  plannedDate?: string | null,
+  plannedTime?: string | null,
+  plannedEndTime?: string | null,
+): string {
+  const time = formatPlannedTime(startPlanned, plannedTime)
+  let dateText: string | null = null
+
+  if (plannedDate) {
+    const parsed = new Date(`${plannedDate}T12:00:00Z`)
+    if (!Number.isNaN(parsed.getTime())) {
+      dateText = new Intl.DateTimeFormat('et-EE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed)
+    }
+  } else if (startPlanned) {
+    const parsed = new Date(startPlanned)
+    if (!Number.isNaN(parsed.getTime())) {
+      dateText = new Intl.DateTimeFormat('et-EE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'Europe/Tallinn',
+      }).format(parsed)
+    }
+  }
+
+  const end = String(plannedEndTime ?? '').trim().slice(0, 5)
+  const timeText = end && time !== 'Aeg määramata' ? `${time}–${end}` : time
+  if (dateText) return `${dateText} · ${timeText}`
+  if (time !== 'Aeg määramata') return `Kuupäev määramata · ${timeText}`
+  return 'Aeg määramata'
 }
 
 export function formatSaveError(error: SaveErrorLike | Error | string | null | undefined): string {
