@@ -88,6 +88,16 @@ export async function finishJob(formData: FormData) {
   const supabase = await createClient()
   const { data: job } = await supabase.from('jobs').select('*').eq('id', id).eq('operator_id', user.id).single()
   if (!job || job.status !== 'toob' || !job.actual_start) redirect('/operator?error=finish')
+
+  const { data: stops, error: stopsError } = await supabase
+    .from('job_stops')
+    .select('status')
+    .eq('job_id', id)
+  if (stopsError) redirect(`/operator/jobs/${id}?error=save`)
+  if ((stops?.length ?? 0) > 0 && stops!.some((stop) => stop.status === 'pending' || stop.status === 'in_progress')) {
+    redirect(`/operator/jobs/${id}?error=stops-open`)
+  }
+
   const { count } = await supabase.from('job_photos').select('*', { count: 'exact', head: true }).eq('job_id', id)
   const actualKmRaw = String(formData.get('actualKm') ?? '').trim()
   const actualKm = actualKmRaw === '' ? null : Number(actualKmRaw)
