@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getCustomerSites, getJobDetail } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
 import { JobStopsEditor } from '@/components/JobStopsEditor'
+import { StopCorrectionForm } from '@/components/StopCorrectionForm'
 import { cancelJob, confirmJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
@@ -10,6 +11,11 @@ import { formatPlannedSchedule } from '@/lib/jobs'
 const dt = (v: string | null) => v ? new Intl.DateTimeFormat('et-EE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Tallinn' }).format(new Date(v)) : '—'
 const money = (v: number | null) => v == null ? '—' : `${Number(v).toFixed(2)} €`
 const locked = new Set(['tehtud', 'vajab_jareltegevust', 'tuhistatud'])
+const correctionErrors: Record<string, string> = {
+  'correction-note': 'Paranduse märkus on kohustuslik.',
+  'correction-time': 'Lõppaeg ei saa olla algusajast varasem.',
+  'correction-save': 'Peatuse paranduse salvestamine ei õnnestunud.',
+}
 
 function stopDuration(start: string | null | undefined, end: string | null | undefined) {
   if (!start || !end) return '—'
@@ -37,10 +43,11 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     <div className="page-title-row"><div><p className="eyebrow">Töö detail</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{waze ? <a href={waze} target="_blank" rel="noreferrer">{job.address}</a> : 'Aadress määramata'}</p></div><div className="stack"><StatusBadge status={job.status as JobStatus} />{editable && <Link className="button secondary" href={`/manager/jobs/${job.id}/edit`}>Muuda</Link>}</div></div>
     {query.saved && <div className="alert success">Muudatused salvestatud.</div>}
     {rawError === 'stale-route' && <div className="alert danger">Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.</div>}
+    {rawError && correctionErrors[rawError] && <div className="alert danger">{correctionErrors[rawError]}</div>}
     {waze && stops.length === 0 && <a className="button secondary wide" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>}
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
 
-    {stops.length > 0 && <section className="detail-card stack"><div><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id}><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}</div>)}</div></section>}
+    {stops.length > 0 && <section className="detail-card stack"><div><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id} className="stack"><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}{(stop.status === 'done' || stop.status === 'skipped') && <StopCorrectionForm jobId={job.id} stop={stop} />}</div>)}</div></section>}
 
     {editable && stops.length > 0 && <JobStopsEditor
       sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
