@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path'
 const here = dirname(fileURLToPath(import.meta.url))
 const initPath = resolve(here, '../../supabase/migrations/20260822190000_init.sql')
 const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_claims_and_invites.sql')
+const sharedCalendarPath = resolve(here, '../../supabase/migrations/20260823140500_shared_lift_calendar.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -16,12 +17,21 @@ test('schema defines all core tables and enables RLS', () => {
   }
 })
 
-test('worker migration exposes only free or own jobs', () => {
+test('worker migration initially exposes free or own jobs', () => {
   const sql = readFileSync(workerPath, 'utf8')
   assert.match(sql, /operator can read free or own jobs/i)
   assert.match(sql, /operator_id\s+is\s+null/i)
   assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
   assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
+})
+
+test('shared lift calendar lets workers read every non-cancelled job without widening update rights', () => {
+  const sql = readFileSync(sharedCalendarPath, 'utf8')
+  assert.match(sql, /operator can read all active lift jobs/i)
+  assert.match(sql, /private\.current_app_role\(\)\s*=\s*'operator'/i)
+  assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
+  assert.match(sql, /operator can update assigned jobs/i)
+  assert.match(sql, /operator_id\s*=\s*\(select auth\.uid\(\)\)/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
