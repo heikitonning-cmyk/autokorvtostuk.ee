@@ -55,6 +55,7 @@ test('customer sites migration adds reusable sites and 59 Neste stations', () =>
   assert.match(sql, /create table if not exists public\.customer_sites/i)
   assert.match(sql, /add column if not exists site_id uuid references public\.customer_sites\(id\)/i)
   assert.match(sql, /customer_sites_customer_external_code_uq/i)
+  assert.match(sql, /execute function private\.set_updated_at\(\)/i)
   assert.match(sql, /manager can manage customer sites/i)
   assert.match(sql, /operator can read customer sites/i)
   assert.match(sql, /operator can add manual customer sites/i)
