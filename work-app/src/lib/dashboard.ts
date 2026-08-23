@@ -22,6 +22,11 @@ function plannedTimestamp(job: Pick<SummaryJob, 'start_planned' | 'planned_date'
   return Number.NaN
 }
 
+function plannedDateKey(job: Pick<SummaryJob, 'start_planned' | 'planned_date'>): string | null {
+  if (job.start_planned) return tallinnDateKey(new Date(job.start_planned))
+  return job.planned_date ?? null
+}
+
 export function jobsWithinDays(jobs: SummaryJob[], days: number, now = new Date()): SummaryJob[] {
   const nowMs = now.getTime()
   return jobs.filter((job) => {
@@ -29,6 +34,18 @@ export function jobsWithinDays(jobs: SummaryJob[], days: number, now = new Date(
     const timestamp = plannedTimestamp(job)
     return Number.isFinite(timestamp) && Math.abs(timestamp - nowMs) <= days * 86400000
   })
+}
+
+export function upcomingJobs(jobs: SummaryJob[], now = new Date(), limit = 10): SummaryJob[] {
+  const todayKey = tallinnDateKey(now)
+  return jobs
+    .filter((job) => {
+      if (job.status !== 'kinnitatud' && job.status !== 'teel') return false
+      const dateKey = plannedDateKey(job)
+      return Boolean(dateKey && dateKey > todayKey && Number.isFinite(plannedTimestamp(job)))
+    })
+    .sort((a, b) => plannedTimestamp(a) - plannedTimestamp(b))
+    .slice(0, Math.max(0, limit))
 }
 
 export function managerSummary(jobs: SummaryJob[], now = new Date()) {
