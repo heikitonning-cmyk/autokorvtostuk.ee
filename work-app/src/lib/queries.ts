@@ -54,6 +54,23 @@ export async function getReferenceData() {
   }
 }
 
+export async function getEditableReferenceData() {
+  const supabase = await createClient()
+  const [customers, workTypes, vehicles] = await Promise.all([
+    supabase.from('customers').select('id,name,contact_name,phone').order('name'),
+    supabase.from('work_types').select('id,name').eq('active', true).order('name'),
+    supabase.from('vehicles').select('id,name,registration_number').eq('active', true).order('name'),
+  ])
+  if (customers.error) throw customers.error
+  if (workTypes.error) throw workTypes.error
+  if (vehicles.error) throw vehicles.error
+  return {
+    customers: customers.data ?? [],
+    workTypes: workTypes.data ?? [],
+    vehicles: vehicles.data ?? [],
+  }
+}
+
 export async function getJobDetail(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -140,7 +157,7 @@ export async function getOperatorJob(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(id,name,phone,email,billing_address), work_type:work_types(id,name), job_photos(*)')
+    .select('*, customer:customers(id,name,phone,email,billing_address), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*)')
     .eq('id', id)
     .single()
   if (error) throw error
