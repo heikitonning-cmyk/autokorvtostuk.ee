@@ -9,6 +9,7 @@ const initPath = resolve(here, '../../supabase/migrations/20260822190000_init.sq
 const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_claims_and_invites.sql')
 const sharedCalendarPath = resolve(here, '../../supabase/migrations/20260823140500_shared_lift_calendar.sql')
 const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_shared_unfinished_job_editing.sql')
+const customerSitesPath = resolve(here, '../../supabase/migrations/20260823150000_customer_sites_and_neste.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -46,6 +47,19 @@ test('all active users can edit every unfinished non-cancelled job through guard
   assert.match(sql, /price_snapshot_json/i)
   assert.match(sql, /settings/i)
   assert.doesNotMatch(sql, /set\s+operator_id\s*=/i)
+})
+
+test('customer sites migration adds reusable sites and 59 Neste stations', () => {
+  const sql = readFileSync(customerSitesPath, 'utf8')
+  assert.match(sql, /create table if not exists public\.customer_sites/i)
+  assert.match(sql, /add column if not exists site_id uuid references public\.customer_sites\(id\)/i)
+  assert.match(sql, /customer_sites_customer_external_code_uq/i)
+  assert.match(sql, /manager can manage customer sites/i)
+  assert.match(sql, /operator can read customer sites/i)
+  assert.match(sql, /operator can add manual customer sites/i)
+  assert.match(sql, /NESTE-001/)
+  assert.match(sql, /NESTE-059/)
+  assert.match(sql, /on conflict \(customer_id, external_code\)/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
