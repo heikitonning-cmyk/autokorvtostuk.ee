@@ -44,7 +44,7 @@ test('manager and worker can open the same edit form for unfinished jobs', () =>
   assert.match(workerEdit, /JobEditForm/)
   assert.match(form, /name="plannedDate"[^>]*type="date"/)
   assert.match(form, /name="plannedTime"[^>]*type="time"/)
-  assert.match(form, /name="customerId"/)
+  assert.match(form, /JobLocationFields/)
   assert.match(form, /name="estimatedHours"/)
   assert.match(form, /Salvesta muudatused/)
 })
@@ -54,6 +54,22 @@ test('job reference data includes customer sites', () => {
   assert.match(queries, /customer_sites/)
   assert.match(queries, /sites:/)
   assert.match(queries, /site:customer_sites/)
+})
+
+test('job forms support customer site selection and new site entry', () => {
+  const component = readFileSync(resolve(root, 'src/components/JobLocationFields.tsx'), 'utf8')
+  const newPage = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
+  const edit = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
+  assert.match(component, /name="customerId"/)
+  assert.match(component, /name="siteId"/)
+  assert.match(component, /newSiteName/)
+  assert.match(component, /newSiteAddress/)
+  assert.match(component, /\+ Lisa uus asukoht/)
+  assert.match(component, /customer_id/)
+  assert.match(component, /setObjectName/)
+  assert.match(component, /setAddress/)
+  assert.match(newPage, /JobLocationFields/)
+  assert.match(edit, /JobLocationFields/)
 })
 
 test('worker shared work plan exposes edit for any editable job', () => {
