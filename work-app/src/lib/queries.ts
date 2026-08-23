@@ -76,16 +76,31 @@ export async function getOperatorTodayJobs(operatorId: string) {
   const now = new Date()
   const from = new Date(now.getTime() - 12 * 3600000).toISOString()
   const to = new Date(now.getTime() + 36 * 3600000).toISOString()
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*, customer:customers(id,name,phone), work_type:work_types(id,name)')
-    .eq('operator_id', operatorId)
-    .neq('status', 'tuhistatud')
-    .gte('start_planned', from)
-    .lte('start_planned', to)
-    .order('start_planned', { ascending: true })
-  if (error) throw error
-  return data ?? []
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Tallinn', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now)
+  const select = '*, customer:customers(id,name,phone), work_type:work_types(id,name)'
+  const [scheduled, dateOnly] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select(select)
+      .eq('operator_id', operatorId)
+      .neq('status', 'tuhistatud')
+      .gte('start_planned', from)
+      .lte('start_planned', to)
+      .order('start_planned', { ascending: true }),
+    supabase
+      .from('jobs')
+      .select(select)
+      .eq('operator_id', operatorId)
+      .neq('status', 'tuhistatud')
+      .is('start_planned', null)
+      .eq('planned_date', today)
+      .order('planned_time', { ascending: true, nullsFirst: false }),
+  ])
+  if (scheduled.error) throw scheduled.error
+  if (dateOnly.error) throw dateOnly.error
+  return [...(scheduled.data ?? []), ...(dateOnly.data ?? [])]
 }
 
 export async function getOperatorJob(id: string) {
@@ -103,7 +118,7 @@ export async function getCustomers() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customers')
-    .select('*, jobs(id,start_planned,status,estimated_total,actual_total)')
+    .select('*, jobs(id,start_planned,planned_date,status,estimated_total,actual_total)')
     .order('name')
   if (error) throw error
   return data ?? []
