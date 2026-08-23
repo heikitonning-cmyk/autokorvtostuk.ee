@@ -6,13 +6,19 @@ import { freeCapacityDays, managerSummary } from '@/lib/dashboard'
 
 function eur(value: number) { return new Intl.NumberFormat('et-EE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value) }
 
+function plannedTimestamp(job: any): number {
+  if (job.start_planned) return new Date(job.start_planned).getTime()
+  if (job.planned_date) return new Date(`${job.planned_date}T12:00:00Z`).getTime()
+  return Number.NaN
+}
+
 export default async function ManagerPage() {
   const jobs = await getManagerJobs()
   const summary = managerSummary(jobs as any[])
   const freeDays = freeCapacityDays(jobs as any[])
   const now = Date.now()
-  const weekJobs = jobs.filter((j: any) => Math.abs(new Date(j.start_planned).getTime() - now) <= 7 * 86400000)
-  const monthJobs = jobs.filter((j: any) => Math.abs(new Date(j.start_planned).getTime() - now) <= 31 * 86400000)
+  const weekJobs = jobs.filter((j: any) => { const t = plannedTimestamp(j); return Number.isFinite(t) && Math.abs(t - now) <= 7 * 86400000 })
+  const monthJobs = jobs.filter((j: any) => { const t = plannedTimestamp(j); return Number.isFinite(t) && Math.abs(t - now) <= 31 * 86400000 })
   const revenue = (arr: any[]) => arr.reduce((s, j) => s + Number(j.actual_total ?? j.estimated_total ?? 0), 0)
 
   return <div className="page stack-lg">
