@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { updateJob } from '@/app/job-edit-actions'
 import type { PriceSettings } from '@/lib/domain'
 import { JobLocationFields } from '@/components/JobLocationFields'
+import { JobStopsEditor } from '@/components/JobStopsEditor'
 
 function tallinnDate(value: string | null | undefined) {
   if (!value) return ''
@@ -53,6 +54,14 @@ export function JobEditForm({
         initialSiteId={job.site_id ?? ''}
         initialObjectName={job.object_name ?? ''}
         initialAddress={job.address ?? ''}
+      />
+      <JobStopsEditor
+        sites={refs.sites.filter((site: any) => !job.customer_id || site.customer_id === job.customer_id)}
+        stops={job.job_stops ?? []}
+        jobId={job.id}
+        routeRevision={job.route_revision ?? 0}
+        routeStartAddress={job.route_start_address ?? ''}
+        routeEndAddress={job.route_end_address ?? ''}
       />
       <div className="form-grid three"><label>Kuupäev<input name="plannedDate" type="date" defaultValue={plannedDate} /></label><label>Kellaaeg<input name="plannedTime" type="time" defaultValue={plannedTime} /><small className="muted">Tühi = “Aeg määramata”.</small></label><label>Lõpuaeg<input name="plannedEndTime" type="time" defaultValue={plannedEndTime} /></label></div>
       <div className="form-grid two"><label>Tööliik<select name="workTypeId" defaultValue={job.work_type_id ?? ''}><option value="">Tööliik määramata</option>{refs.workTypes.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label>Tõstuk<select name="vehicleId" defaultValue={job.vehicle_id ?? ''}><option value="">Tõstuk määramata</option>{refs.vehicles.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label></div>
