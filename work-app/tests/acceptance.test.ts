@@ -142,6 +142,14 @@ test('multi-stop editor supports search, many selected sites and mobile reorder'
   assert.match(order, /SortableContext/)
 })
 
+test('stop picker can add a one-off address and reorder selected drafts before saving', () => {
+  const picker = readFileSync(resolve(root, 'src/components/StopPicker.tsx'), 'utf8')
+  assert.match(picker, /\+ Lisa muu aadress/)
+  assert.match(picker, /manualAddress/)
+  assert.match(picker, /Valitud/)
+  assert.match(picker, /arrayMove|SortableContext/)
+})
+
 test('manager and worker edit flows expose shared multi-stop planning actions', () => {
   const actions = readFileSync(resolve(root, 'src/app/job-stop-actions.ts'), 'utf8')
   const managerActions = readFileSync(resolve(root, 'src/app/manager/jobs/actions.ts'), 'utf8')
