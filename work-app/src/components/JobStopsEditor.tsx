@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { StopPicker, type StopDraft } from '@/components/StopPicker'
 import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEditor'
 import { RouteEndpointFields } from '@/components/RouteEndpointFields'
+import { RouteOptimizationPanel } from '@/components/RouteOptimizationPanel'
 import type { SiteOption } from '@/lib/job-stops'
 import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction, updateStopDescriptionAction } from '@/app/job-stop-actions'
 
@@ -55,6 +56,8 @@ export function JobStopsEditor({
   useEffect(() => { setEndSiteId(routeEndSiteId); setEndAddress(routeEndAddress) }, [routeEndSiteId, routeEndAddress])
 
   const shownStops = jobId ? stops : draftStops
+  const pendingCount = shownStops.filter((stop) => stop.status === 'pending').length
+  const hasStarted = shownStops.some((stop) => stop.status !== 'pending' || Boolean((stop as StopOrderItem & { actual_start?: string | null }).actual_start))
   const initialStopsJson = useMemo(() => JSON.stringify(draftStops.map((stop) => ({
     siteId: stop.siteId,
     name: stop.name_snapshot ?? '',
@@ -177,6 +180,7 @@ export function JobStopsEditor({
     </> : <p className="muted">Marsruudi algus ja lõpp: Luige (vaikimisi). Pärast töö salvestamist saad neid vajadusel muuta.</p>}
 
     {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} onDescriptionSave={jobId ? saveDescription : undefined} />}
+    {jobId && !hasStarted && pendingCount >= 2 && <RouteOptimizationPanel jobId={jobId} mode="all" routeRevision={revision} />}
     <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
     {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
     {isPending && <small className="muted">Salvestan marsruuti…</small>}
