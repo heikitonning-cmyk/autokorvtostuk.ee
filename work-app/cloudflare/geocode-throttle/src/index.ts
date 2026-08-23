@@ -1,4 +1,4 @@
-import { buildNominatimSearch, parseNominatimResult } from '../../../src/lib/routing/nominatim.ts'
+import { buildNominatimSearch, parseNominatimResult } from './nominatim.ts'
 import { OnePerSecondQueue } from './queue.ts'
 
 type DurableObjectStorageLike = {
