@@ -6,7 +6,7 @@ import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { getPricingSettings } from '@/lib/queries'
 import { calculatePrice, createPriceSnapshot } from '@/lib/pricing'
-import { formatSaveError, optionalIsoDateTime } from '@/lib/jobs'
+import { combinePlannedDateTime, formatSaveError } from '@/lib/jobs'
 
 const num = (value: FormDataEntryValue | null, fallback = 0) => {
   const text = String(value ?? '').trim()
@@ -31,13 +31,19 @@ export async function createJob(formData: FormData) {
     adjustment: num(formData.get('manualAdjustment')),
   }
   const price = calculatePrice(priceInput, settings)
+  const plannedDate = optionalText(formData.get('plannedDate'))
+  const plannedTime = optionalText(formData.get('plannedTime'))
+  const plannedEndTime = optionalText(formData.get('plannedEndTime'))
   const supabase = await createClient()
   const { data, error } = await supabase.from('jobs').insert({
     customer_id: optionalText(formData.get('customerId')),
     vehicle_id: optionalText(formData.get('vehicleId')),
     operator_id: optionalText(formData.get('operatorId')),
-    start_planned: optionalIsoDateTime(formData.get('startPlanned')),
-    end_planned: optionalIsoDateTime(formData.get('endPlanned')),
+    planned_date: plannedDate,
+    planned_time: plannedTime,
+    planned_end_time: plannedEndTime,
+    start_planned: combinePlannedDateTime(plannedDate, plannedTime),
+    end_planned: combinePlannedDateTime(plannedDate, plannedEndTime),
     address: optionalText(formData.get('address')),
     object_name: optionalText(formData.get('objectName')),
     work_type_id: optionalText(formData.get('workTypeId')),
