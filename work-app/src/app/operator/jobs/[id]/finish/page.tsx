@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getOperatorJob } from '@/lib/queries'
 import { finishJob } from '../../actions'
 
@@ -7,8 +7,14 @@ export default async function FinishPage({ params, searchParams }: { params: Pro
   const query = await searchParams
   let job: any
   try { job = await getOperatorJob(id) } catch { notFound() }
+  const stops = job.job_stops ?? []
+  if (stops.length > 0 && stops.some((stop: any) => stop.status === 'pending' || stop.status === 'in_progress')) {
+    redirect(`/operator/jobs/${id}?error=stops-open`)
+  }
+
   return <div className="page narrow stack-lg">
     <div><p className="eyebrow">Töö lõpetamine</p><h1>{job.object_name || job.customer?.name}</h1><p className="muted">Viimane kontroll. Punaseks ei lähe midagi — kui info on puudu, liigub töö juhile järeltegevusse.</p></div>
+    {stops.length > 0 && <div className="alert success">Kõik {stops.length} peatust on lahendatud. Võid tööpäeva lõpetada.</div>}
     {query.error && <div className="alert danger">Salvestamine ei õnnestunud. Ära loe tööd lõpetatuks enne, kui saad kinnituse.</div>}
     <form action={finishJob} className="form-card stack">
       <input type="hidden" name="id" value={job.id} />
