@@ -25,13 +25,13 @@ test('worker migration initially exposes free or own jobs', () => {
   assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
 })
 
-test('shared lift calendar lets workers read every non-cancelled job without widening update rights', () => {
+test('shared lift calendar exposes all non-cancelled bookings without widening job updates', () => {
   const sql = readFileSync(sharedCalendarPath, 'utf8')
-  assert.match(sql, /operator can read all active lift jobs/i)
-  assert.match(sql, /private\.current_app_role\(\)\s*=\s*'operator'/i)
+  assert.match(sql, /create or replace function public\.shared_lift_calendar/i)
+  assert.match(sql, /security definer/i)
   assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
-  assert.match(sql, /operator can update assigned jobs/i)
-  assert.match(sql, /operator_id\s*=\s*\(select auth\.uid\(\)\)/i)
+  assert.match(sql, /private\.current_app_role\(\)\s+not in\s+\('operator',\s*'manager'\)/i)
+  assert.doesNotMatch(sql, /create policy .*update.*all active lift jobs/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
