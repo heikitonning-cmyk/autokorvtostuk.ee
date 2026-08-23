@@ -22,3 +22,26 @@ export async function createCustomer(formData: FormData) {
   revalidatePath('/manager/customers')
   revalidatePath('/manager/jobs/new')
 }
+
+export async function createCustomerSite(formData: FormData) {
+  await requireUser('manager')
+  const customerId = String(formData.get('customerId') ?? '').trim()
+  const name = String(formData.get('name') ?? '').trim()
+  const address = String(formData.get('address') ?? '').trim() || null
+  if (!customerId || !name) return
+
+  const supabase = await createClient()
+  await supabase.from('customer_sites').insert({
+    customer_id: customerId,
+    name,
+    address,
+    requires_lift: formData.get('requiresLift') === 'on' ? true : null,
+    source: 'manual',
+    active: true,
+  })
+
+  revalidatePath('/manager/customers')
+  revalidatePath('/manager/jobs/new')
+  revalidatePath('/manager')
+  revalidatePath('/operator')
+}
