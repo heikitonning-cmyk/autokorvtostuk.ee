@@ -1,8 +1,23 @@
-import type { RouteMetrics, RouteOptimizationResult, RoutePoint, RouteProposal } from './types.ts'
+import { optimizeFixedEndpoints, pathMetrics } from './optimizer.ts'
+import type {
+  DistanceMatrix,
+  DurationMatrix,
+  RouteMetrics,
+  RouteOptimizationResult,
+  RoutePoint,
+  RouteProposal,
+} from './types.ts'
 
 export type FetchLike = typeof fetch
+export type Sleep = (ms: number) => Promise<void>
 
 const COMPUTE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes'
+const COMPUTE_MATRIX_URL = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix'
+const MATRIX_CHUNK_SIZE = 25
+const MATRIX_ELEMENT_BUDGET = 2900
+const MATRIX_WINDOW_MS = 60_000
+
+const defaultSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function parseDurationSeconds(value: unknown) {
   const text = String(value ?? '').trim()
@@ -102,4 +117,114 @@ export async function optimizeSmallRouteGoogle(
   const current = await estimateOrderedRouteGoogle(start, stops, end, apiKey, fetchImpl)
   const proposal = await optimizeWaypointsGoogle(start, stops, end, apiKey, fetchImpl)
   return { current, proposal }
+}
+
+function chunk<T>(items: T[], size: number) {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size))
+}
+
+export async function buildGoogleRouteMatrix(
+  points: RoutePoint[],
+  apiKey: string,
+  fetchImpl: FetchLike = fetch,
+  sleepImpl: Sleep = defaultSleep,
+): Promise<{ duration: DurationMatrix; distance: DistanceMatrix }> {
+  if (!apiKey.trim()) throw new Error('Google Routes API key missing')
+  if (!points.length) return { duration: {}, distance: {} }
+
+  const duration: DurationMatrix = {}
+  const distance: DistanceMatrix = {}
+  for (const point of points) {
+    duration[point.id] = {}
+    distance[point.id] = {}
+  }
+
+  const chunks = chunk(points, MATRIX_CHUNK_SIZE)
+  let windowStarted = Date.now()
+  let elementsUsed = 0
+
+  for (const originChunk of chunks) {
+    for (const destinationChunk of chunks) {
+      const elements = originChunk.length * destinationChunk.length
+      const now = Date.now()
+      if (now - windowStarted >= MATRIX_WINDOW_MS) {
+        windowStarted = now
+        elementsUsed = 0
+      }
+      if (elementsUsed + elements > MATRIX_ELEMENT_BUDGET) {
+        await sleepImpl(Math.max(0, MATRIX_WINDOW_MS - (now - windowStarted)))
+        windowStarted = Date.now()
+        elementsUsed = 0
+      }
+      elementsUsed += elements
+
+      const response = await fetchImpl(COMPUTE_MATRIX_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'originIndex,destinationIndex,duration,distanceMeters,status,condition',
+        },
+        body: JSON.stringify({
+          origins: originChunk.map((point) => ({ waypoint: { address: point.address } })),
+          destinations: destinationChunk.map((point) => ({ waypoint: { address: point.address } })),
+          travelMode: 'DRIVE',
+          routingPreference: 'TRAFFIC_AWARE',
+          regionCode: 'ee',
+        }),
+      })
+
+      if (!response.ok) throw new Error(`Google Route Matrix failed: ${response.status}`)
+      const payload = await response.json() as any
+      if (!Array.isArray(payload)) throw new Error('Google Route Matrix returned invalid response')
+
+      for (const element of payload) {
+        const originIndex = Number(element?.originIndex)
+        const destinationIndex = Number(element?.destinationIndex)
+        const origin = originChunk[originIndex]
+        const destination = destinationChunk[destinationIndex]
+        if (!origin || !destination) throw new Error('Google Route Matrix returned invalid indexes')
+        if (element?.condition !== 'ROUTE_EXISTS') throw new Error('Google Route Matrix route missing')
+        if (Number(element?.status?.code ?? 0) !== 0) throw new Error('Google Route Matrix element failed')
+        duration[origin.id][destination.id] = parseDurationSeconds(element.duration)
+        if (Number.isFinite(Number(element.distanceMeters))) {
+          distance[origin.id][destination.id] = Number(element.distanceMeters)
+        }
+      }
+    }
+  }
+
+  for (const origin of points) {
+    for (const destination of points) {
+      if (!Number.isFinite(duration[origin.id]?.[destination.id])) {
+        throw new Error(`Google Route Matrix incomplete: ${origin.id} -> ${destination.id}`)
+      }
+    }
+  }
+
+  return { duration, distance }
+}
+
+export async function optimizeLargeRouteGoogle(
+  start: RoutePoint,
+  stops: RoutePoint[],
+  end: RoutePoint,
+  apiKey: string,
+  fetchImpl: FetchLike = fetch,
+  sleepImpl: Sleep = defaultSleep,
+): Promise<RouteOptimizationResult> {
+  const points = [start, ...stops, end]
+  const matrix = await buildGoogleRouteMatrix(points, apiKey, fetchImpl, sleepImpl)
+  const current = pathMetrics(start.id, stops.map((stop) => stop.id), end.id, matrix.duration, matrix.distance)
+  const orderedStopIds = optimizeFixedEndpoints(start.id, stops.map((stop) => stop.id), end.id, matrix.duration)
+  const optimizedMetrics = pathMetrics(start.id, orderedStopIds, end.id, matrix.duration, matrix.distance)
+
+  return {
+    current,
+    proposal: {
+      ...optimizedMetrics,
+      orderedStopIds,
+      source: 'matrix-heuristic',
+    },
+  }
 }
