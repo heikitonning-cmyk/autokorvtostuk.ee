@@ -31,3 +31,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run build:cf
+      - run: npm install
+        working-directory: work-app/cloudflare/geocode-throttle
+      - run: npm run check
+        working-directory: work-app/cloudflare/geocode-throttle
