@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getJobDetail } from '@/lib/queries'
+import { getCustomerSites, getJobDetail } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
+import { JobStopsEditor } from '@/components/JobStopsEditor'
 import { cancelJob, confirmJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
@@ -18,12 +19,28 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const planned = formatPlannedSchedule(job.start_planned, job.planned_date, job.planned_time, job.planned_end_time)
   const editable = !locked.has(job.status)
   const waze = job.address ? `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes` : null
+  const stops = [...(job.job_stops ?? [])].sort((a:any,b:any)=>Number(a.sequence_no)-Number(b.sequence_no))
+  const sites = editable ? await getCustomerSites() : []
+  const rawError = Array.isArray(query.error) ? query.error[0] : query.error
 
   return <div className="page narrow stack-lg">
     <div className="page-title-row"><div><p className="eyebrow">Töö detail</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{waze ? <a href={waze} target="_blank" rel="noreferrer">{job.address}</a> : 'Aadress määramata'}</p></div><div className="stack"><StatusBadge status={job.status as JobStatus} />{editable && <Link className="button secondary" href={`/manager/jobs/${job.id}/edit`}>Muuda</Link>}</div></div>
     {query.saved && <div className="alert success">Muudatused salvestatud.</div>}
-    {waze && <a className="button secondary wide" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>}
+    {rawError === 'stale-route' && <div className="alert danger">Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.</div>}
+    {waze && stops.length === 0 && <a className="button secondary wide" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>}
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
+
+    {stops.length > 0 && <section className="detail-card"><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></section>}
+
+    {editable && stops.length > 0 && <JobStopsEditor
+      sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
+      stops={stops}
+      jobId={job.id}
+      routeRevision={job.route_revision ?? 0}
+      routeStartAddress={job.route_start_address ?? ''}
+      routeEndAddress={job.route_end_address ?? ''}
+    />}
+
     <section className="detail-card"><h2>Aeg ja inimesed</h2><dl><div><dt>Plaan</dt><dd>{planned}</dd></div><div><dt>Klient</dt><dd>{job.customer?.name || 'Määramata'}</dd></div><div><dt>Kontakt</dt><dd>{job.customer?.phone || job.customer?.email || '—'}</dd></div><div><dt>Operaator</dt><dd>{job.operator?.name || 'Määramata'}</dd></div><div><dt>Tööliik</dt><dd>{job.work_type?.name || 'Määramata'}</dd></div></dl></section>
     <section className="detail-card"><h2>Töö</h2><p>{job.description || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Ligipääs</strong><p>{job.access_notes}</p></div>}</section>
     <section className="detail-card"><h2>Hind</h2><dl><div><dt>Eeldus</dt><dd>{money(job.estimated_total)}</dd></div><div><dt>Tõstuk</dt><dd>{job.estimated_hours} h</dd></div><div><dt>Sõit</dt><dd>{job.estimated_drive_hours} h / {job.estimated_km} km</dd></div><div><dt>Lisamees</dt><dd>{job.estimated_helper_hours} h</dd></div><div><dt>Tegelik</dt><dd>{money(job.actual_total)}</dd></div></dl>{job.price_snapshot_json && <p className="snapshot">Hind lukustatud töö kinnitamisel: {job.price_snapshot_json.hourlyRate} €/h, km {job.price_snapshot_json.kmRate} €.</p>}</section>
