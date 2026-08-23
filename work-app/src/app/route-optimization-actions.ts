@@ -5,7 +5,13 @@ import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { getBaseLocation } from '@/lib/queries'
 import { optimizeLargeRouteGoogle, optimizeSmallRouteGoogle } from '@/lib/routing/google-routes'
-import type { RouteOptimizationResult, RoutePoint } from '@/lib/routing/types'
+import { optimizeRouteOsrm } from '@/lib/routing/osrm'
+import { optimizeWithFallback, type FallbackRoutePoint } from '@/lib/routing/provider'
+import { resolveCoordinates } from '@/lib/routing/geocode'
+import { createSupabaseGeocodeStore } from '@/lib/routing/geocode-store'
+import { geocodeThroughConfiguredThrottle } from '@/lib/routing/cloudflare-geocode'
+import { isCoordinates, type Coordinates } from '@/lib/routing/coordinates'
+import type { RouteOptimizationResult } from '@/lib/routing/types'
 
 type OptimizationMode = 'all' | 'remaining'
 type ProposalResult =
@@ -25,19 +31,34 @@ function refreshJob(jobId: string) {
   revalidatePath(`/operator/jobs/${jobId}/edit`)
 }
 
+function stopCoordinates(stop: any): Coordinates | null {
+  const coordinates = {
+    latitude: Number(stop?.latitude_snapshot),
+    longitude: Number(stop?.longitude_snapshot),
+  }
+  return stop?.latitude_snapshot == null || stop?.longitude_snapshot == null || !isCoordinates(coordinates)
+    ? null
+    : coordinates
+}
+
+function siteCoordinates(site: any, expectedAddress: string): Coordinates | null {
+  if (!site || String(site.address ?? '').trim() !== expectedAddress.trim()) return null
+  if (String(site.geocode_address_snapshot ?? '').trim() !== String(site.address ?? '').trim()) return null
+  const coordinates = { latitude:Number(site.latitude), longitude:Number(site.longitude) }
+  return site.latitude == null || site.longitude == null || !isCoordinates(coordinates) ? null : coordinates
+}
+
 export async function proposeRouteOptimization(input: {
   jobId: string
   mode: OptimizationMode
 }): Promise<ProposalResult> {
   await requireUser()
-  const apiKey = process.env.GOOGLE_MAPS_ROUTES_API_KEY?.trim()
-  if (!apiKey) return { ok: false, error: 'routing-not-configured' }
   if (!input.jobId || !['all', 'remaining'].includes(input.mode)) return { ok: false, error: 'routing-failed' }
 
   const supabase = await createClient()
   const { data: job, error: jobError } = await supabase
     .from('jobs')
-    .select('id,status,route_revision,route_start_address,route_end_address')
+    .select('id,status,route_revision,route_start_site_id,route_start_address,route_end_site_id,route_end_address')
     .eq('id', input.jobId)
     .single()
   if (jobError || !job || ['tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)) {
@@ -46,7 +67,7 @@ export async function proposeRouteOptimization(input: {
 
   const { data: rawStops, error: stopsError } = await supabase
     .from('job_stops')
-    .select('id,sequence_no,name_snapshot,address_snapshot,status,actual_start,actual_end')
+    .select('id,site_id,sequence_no,name_snapshot,address_snapshot,status,actual_start,actual_end,latitude_snapshot,longitude_snapshot')
     .eq('job_id', input.jobId)
     .order('sequence_no', { ascending: true })
   if (stopsError) return { ok: false, error: 'routing-failed' }
@@ -69,33 +90,94 @@ export async function proposeRouteOptimization(input: {
   const routeEnd = String(job.route_end_address || baseLocation.address || '').trim()
   if (!routeStart || !routeEnd) return { ok: false, error: 'route-endpoint-missing' }
 
+  const endpointSiteIds = [job.route_start_site_id, job.route_end_site_id].filter(Boolean) as string[]
+  const endpointSites = new Map<string, any>()
+  if (endpointSiteIds.length) {
+    const { data, error } = await supabase
+      .from('customer_sites')
+      .select('id,address,latitude,longitude,geocode_address_snapshot')
+      .in('id', endpointSiteIds)
+    if (error) return { ok: false, error: 'routing-failed' }
+    for (const site of data ?? []) endpointSites.set(String(site.id), site)
+  }
+
   let effectiveStart = routeStart
+  let effectiveStartStop: any = null
   if (input.mode === 'remaining') {
     const active = stops.find((stop: any) => stop.status === 'in_progress')
     const reachedTerminal = [...stops]
       .reverse()
       .find((stop: any) => ['done', 'skipped'].includes(stop.status) && Boolean(stop.actual_start))
-    effectiveStart = String(active?.address_snapshot || reachedTerminal?.address_snapshot || routeStart).trim()
+    effectiveStartStop = active ?? reachedTerminal ?? null
+    effectiveStart = String(effectiveStartStop?.address_snapshot || routeStart).trim()
   }
   if (!effectiveStart) return { ok: false, error: 'route-endpoint-missing' }
 
-  const start: RoutePoint = { id: '__route_start__', address: effectiveStart }
-  const end: RoutePoint = { id: '__route_end__', address: routeEnd }
-  const movable: RoutePoint[] = pending.map((stop: any) => ({ id: String(stop.id), address: String(stop.address_snapshot || '').trim() }))
+  const start: FallbackRoutePoint = effectiveStartStop
+    ? {
+        id:'__route_start__',
+        address:effectiveStart,
+        siteId:effectiveStartStop.site_id ?? null,
+        stopId:effectiveStartStop.id,
+        coordinates:stopCoordinates(effectiveStartStop),
+      }
+    : {
+        id:'__route_start__',
+        address:effectiveStart,
+        siteId:job.route_start_site_id ?? null,
+        coordinates:siteCoordinates(endpointSites.get(String(job.route_start_site_id ?? '')), effectiveStart),
+      }
+
+  const end: FallbackRoutePoint = {
+    id:'__route_end__',
+    address:routeEnd,
+    siteId:job.route_end_site_id ?? null,
+    coordinates:siteCoordinates(endpointSites.get(String(job.route_end_site_id ?? '')), routeEnd),
+  }
+
+  const movable: FallbackRoutePoint[] = pending.map((stop: any) => ({
+    id:String(stop.id),
+    address:String(stop.address_snapshot || '').trim(),
+    siteId:stop.site_id ?? null,
+    stopId:String(stop.id),
+    coordinates:stopCoordinates(stop),
+  }))
   if (movable.some((stop) => !stop.address)) return { ok: false, error: 'route-endpoint-missing' }
 
+  const store = createSupabaseGeocodeStore(supabase)
   try {
-    const result = movable.length <= 25
-      ? await optimizeSmallRouteGoogle(start, movable, end, apiKey)
-      : await optimizeLargeRouteGoogle(start, movable, end, apiKey)
+    const result = await optimizeWithFallback({
+      start,
+      stops:movable,
+      end,
+      googleApiKey:process.env.GOOGLE_MAPS_ROUTES_API_KEY,
+      google:async (googleStart, googleStops, googleEnd, apiKey) => googleStops.length <= 25
+        ? optimizeSmallRouteGoogle(googleStart, googleStops, googleEnd, apiKey)
+        : optimizeLargeRouteGoogle(googleStart, googleStops, googleEnd, apiKey),
+      resolve:(point) => resolveCoordinates({
+        point,
+        siteId:point.siteId ?? null,
+        stopId:point.stopId ?? null,
+        snapshot:point.coordinates ?? null,
+        store,
+        geocode:geocodeThroughConfiguredThrottle,
+      }),
+      osrm:(resolvedStart, resolvedStops, resolvedEnd) => optimizeRouteOsrm(
+        resolvedStart,
+        resolvedStops,
+        resolvedEnd,
+        process.env.OSRM_BASE_URL || 'https://router.project-osrm.org',
+      ),
+    })
     return {
       ok: true,
       result,
       stopNames: Object.fromEntries(pending.map((stop: any) => [String(stop.id), String(stop.name_snapshot || stop.address_snapshot)])),
       routeRevision: Number(job.route_revision ?? 0),
     }
-  } catch {
-    return { ok: false, error: 'routing-failed' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    return { ok: false, error: message.includes('geocode-failed') ? 'geocode-failed' : 'routing-failed' }
   }
 }
 
