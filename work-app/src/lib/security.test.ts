@@ -8,6 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const initPath = resolve(here, '../../supabase/migrations/20260822190000_init.sql')
 const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_claims_and_invites.sql')
 const sharedCalendarPath = resolve(here, '../../supabase/migrations/20260823140500_shared_lift_calendar.sql')
+const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_shared_unfinished_job_editing.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -32,6 +33,19 @@ test('shared lift calendar exposes all non-cancelled bookings without widening j
   assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
   assert.match(sql, /private\.current_app_role\(\)\s+not in\s+\('operator',\s*'manager'\)/i)
   assert.doesNotMatch(sql, /create policy .*update.*all active lift jobs/i)
+})
+
+test('all active users can edit every unfinished non-cancelled job through guarded RPC', () => {
+  const sql = readFileSync(sharedEditPath, 'utf8')
+  assert.match(sql, /create or replace function public\.update_editable_job/i)
+  assert.match(sql, /security definer/i)
+  assert.match(sql, /private\.current_app_role\(\)\s+not in\s+\('operator',\s*'manager'\)/i)
+  assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
+  assert.match(sql, /operator can read all non-cancelled jobs/i)
+  assert.match(sql, /operator can read all customers/i)
+  assert.match(sql, /price_snapshot_json/i)
+  assert.match(sql, /settings/i)
+  assert.doesNotMatch(sql, /set\s+operator_id\s*=/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
