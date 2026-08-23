@@ -21,6 +21,23 @@ const optionalText = (value: FormDataEntryValue | null) => {
   return text || null
 }
 
+function parseInitialStops(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    return parsed.map((item: any) => ({
+      siteId: String(item?.siteId ?? '').trim() || null,
+      name: String(item?.name ?? '').trim(),
+      address: String(item?.address ?? '').trim(),
+      description: String(item?.description ?? '').trim() || null,
+    }))
+  } catch {
+    return null
+  }
+}
+
 export async function createJob(formData: FormData) {
   const user = await requireUser('manager')
   const settings = await getPricingSettings()
@@ -36,6 +53,11 @@ export async function createJob(formData: FormData) {
   const plannedTime = optionalText(formData.get('plannedTime'))
   const plannedEndTime = optionalText(formData.get('plannedEndTime'))
   const customerId = optionalText(formData.get('customerId'))
+  const initialStops = parseInitialStops(formData.get('initialStopsJson'))
+  if (initialStops === null || initialStops.some((stop) => !stop.address)) {
+    redirect(`/manager/jobs/new?error=${encodeURIComponent('Peatuste andmed ei ole korrektsed.')}`)
+  }
+
   const choice = normalizeSiteChoice({
     siteId: String(formData.get('siteId') ?? ''),
     newSiteName: String(formData.get('newSiteName') ?? ''),
@@ -104,6 +126,18 @@ export async function createJob(formData: FormData) {
 
   if (error) redirect(`/manager/jobs/new?error=${encodeURIComponent(formatSaveError(error))}`)
   if (!data) redirect(`/manager/jobs/new?error=${encodeURIComponent('Supabase ei tagastanud loodud töö ID-d.')}`)
+
+  if (initialStops.length > 0) {
+    const { error: stopsError } = await supabase.rpc('add_job_stops', {
+      p_job_id: data.id,
+      p_stops: initialStops,
+      p_expected_revision: 0,
+    })
+    if (stopsError) {
+      await supabase.from('jobs').delete().eq('id', data.id)
+      redirect(`/manager/jobs/new?error=${encodeURIComponent(formatSaveError(stopsError))}`)
+    }
+  }
 
   revalidatePath('/manager')
   revalidatePath('/manager/calendar')
