@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { updateJob } from '@/app/job-edit-actions'
 import type { PriceSettings } from '@/lib/domain'
+import { JobLocationFields } from '@/components/JobLocationFields'
 
 function tallinnDate(value: string | null | undefined) {
   if (!value) return ''
@@ -29,7 +30,7 @@ export function JobEditForm({
   cancelHref,
 }: {
   job: any
-  refs: { customers: any[]; workTypes: any[]; vehicles: any[] }
+  refs: { customers: any[]; workTypes: any[]; vehicles: any[]; sites: any[] }
   pricing: PriceSettings
   view: 'manager' | 'worker'
   errorText?: string
@@ -45,11 +46,16 @@ export function JobEditForm({
     <form action={updateJob} className="form-card stack">
       <input type="hidden" name="id" value={job.id} />
       <input type="hidden" name="view" value={view} />
-      <label>Klient<select name="customerId" defaultValue={job.customer_id ?? ''}><option value="">Klient määramata</option>{refs.customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <JobLocationFields
+        customers={refs.customers}
+        sites={refs.sites}
+        initialCustomerId={job.customer_id ?? ''}
+        initialSiteId={job.site_id ?? ''}
+        initialObjectName={job.object_name ?? ''}
+        initialAddress={job.address ?? ''}
+      />
       <div className="form-grid three"><label>Kuupäev<input name="plannedDate" type="date" defaultValue={plannedDate} /></label><label>Kellaaeg<input name="plannedTime" type="time" defaultValue={plannedTime} /><small className="muted">Tühi = “Aeg määramata”.</small></label><label>Lõpuaeg<input name="plannedEndTime" type="time" defaultValue={plannedEndTime} /></label></div>
       <div className="form-grid two"><label>Tööliik<select name="workTypeId" defaultValue={job.work_type_id ?? ''}><option value="">Tööliik määramata</option>{refs.workTypes.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label>Tõstuk<select name="vehicleId" defaultValue={job.vehicle_id ?? ''}><option value="">Tõstuk määramata</option>{refs.vehicles.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label></div>
-      <label>Objekt / lühinimi<input name="objectName" defaultValue={job.object_name ?? ''} placeholder="nt Koivu 12" /></label>
-      <label>Aadress<input name="address" defaultValue={job.address ?? ''} placeholder="Tänav, linn" /></label>
       <label>Töö kirjeldus<textarea name="description" rows={3} defaultValue={job.description ?? ''} placeholder="Mida tuleb teha?" /></label>
       <label>Ligipääs / oluline kasutajale<textarea name="accessNotes" rows={2} defaultValue={job.access_notes ?? ''} placeholder="Värav, kontakt, parkimine, ohtlik koht..." /></label>
       <div className="divider"><span>Hinna eelarve</span></div>
