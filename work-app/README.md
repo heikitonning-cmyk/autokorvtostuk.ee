@@ -13,6 +13,7 @@ Mobiilikeskne PWA Euro Kapital OÜ autokorvtõstuki tööde juhtimiseks. Avalik 
 - Marsruudi algus ja lõpp on vaikimisi Luige ning neid saab töö kaupa muuta.
 - Waze avab järgmise peatuse navigeerimise; rakendus hoiab marsruudi järjekorda.
 - Marsruudi optimeerimine arvutab kiireima ettepaneku ainult kasutaja nupuvajutusel ja ei muuda salvestatud järjekorda enne **Kasuta soovitust** kinnitust.
+- Google Routes on valikuline. Kui Google'i võti puudub või Google ei vasta, kasutatakse salvestatud koordinaate/Nominatimi ja OSRM-i; kui ka fallback ei tööta, jäävad käsitsi järjestamine ja Waze alati kasutatavaks.
 - Aktiivse töö ajal saab optimeerida ainult tegemata peatuste järjekorda; tehtud, vahele jäetud ja aktiivne peatus jäävad paigale.
 - Privaatne fotode salvestus Supabase Storage'is.
 - Kliendid, kalender, hinnad ja tööliigid.
@@ -25,11 +26,11 @@ Mobiilikeskne PWA Euro Kapital OÜ autokorvtõstuki tööde juhtimiseks. Avalik 
 2. Käivita SQL Editoris migratsioonid `supabase/migrations/` kaustast kronoloogilises järjekorras.
 3. Käivita `supabase/seed.sql`.
 4. Loo Authentication > Users alt juhi ja operaatori kasutajad.
-5. Lisa nende Auth UUID-d `public.users` tabelisse. Esimese juhi näide:
+5. Lisa nende Auth UUID-d `public.users` tabelisse. Näide:
 
 ```sql
 insert into public.users (id, name, email, role, active)
-values ('AUTH-USER-UUID', 'Heiki', 'EMAIL', 'manager', true);
+values ('AUTH-USER-UUID', 'Juht', 'EMAIL', 'manager', true);
 ```
 
 Operaatori puhul kasuta rolli `operator`.
@@ -42,9 +43,12 @@ Lokaalsesse `.env.local` faili:
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
 GOOGLE_MAPS_ROUTES_API_KEY=
+OSRM_BASE_URL=https://router.project-osrm.org
+NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
+ROUTING_USER_AGENT=autokorvtostuk-app/1.0
 ```
 
-`GOOGLE_MAPS_ROUTES_API_KEY` on serveripoolne Google Maps Platform Routes API võti. Seda ei tohi nimetada `NEXT_PUBLIC_...`, sest võti ei tohi brauserisse jõuda. Kui võti puudub, jäävad käsitsi peatuste järjestamine ja Waze navigeerimine tööle; ainult marsruudi optimeerimise nupp näitab, et funktsioon pole veel seadistatud.
+`GOOGLE_MAPS_ROUTES_API_KEY`, `OSRM_BASE_URL`, `NOMINATIM_BASE_URL` ja `ROUTING_USER_AGENT` on serveripoolsed routing-seaded ning neid ei tohi nimetada `NEXT_PUBLIC_...`. Google'i võti on valikuline. Nominatimi tootmiskasutuse identifitseeriv `ROUTING_USER_AGENT` tuleb Cloudflare'is seadistada sobiva rakenduse/kontakti identifikaatoriga; privaatset kontaktandmetega väärtust Git-i ei salvestata.
 
 ## Kohalik käivitus
 
@@ -57,17 +61,42 @@ npm run typecheck
 npm run dev
 ```
 
+Cloudflare'i Workers-runtime buildi kontroll:
+
+```bash
+npm run build:cf
+```
+
+## Cloudflare Workers / OpenNext
+
+Cloudflare'i deploy tee on seadistatud OpenNext adapteriga. Põhi-Worker on `autokorvtostuk-app`; geokodeerimise Durable Object töötab eraldi Workerina `autokorvtostuk-geocode-throttle`. Põhiäpp kasutab external Durable Object bindingut `GEOCODE_THROTTLE`.
+
+Kasulikud käsud:
+
+```bash
+npm run build:cf
+npm run preview:cf
+npm run deploy:geocode-throttle
+npm run deploy:cf
+npm run cf-typegen
+```
+
+Cloudflare'i keskkonnas tuleb seadistada vähemalt `NEXT_PUBLIC_SUPABASE_URL` ja `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Routing-fallback kasutab `OSRM_BASE_URL`; geocode-throttle kasutab `NOMINATIM_BASE_URL` ja identifitseerivat `ROUTING_USER_AGENT` väärtust. `GOOGLE_MAPS_ROUTES_API_KEY` võib puududa — sellisel juhul on marsruudi ettepaneku arvutus OSRM-i põhine ja kasutajale kuvatakse **Tavapärase sõiduaja järgi** koos OpenStreetMapi omistusega.
+
+`app.autokorvtostuk.ee` ei viida Cloudflare'i peale enne, kui `workers.dev` preview on läbinud autentimise, andmebaasi, viie peatusega OSRM marsruudi, aktiivse töö ja vearežiimi smoke-testid. Senine tootmisdomeen jääb selle kontrollini muutmata.
+
 ## Vercel
+
+Verceli seadistus jääb alles varasema/alternatiivse hostingu dokumentatsioonina:
 
 1. Ühenda Vercel GitHubi repoga `heikitonning-cmyk/autokorvtostuk.ee`.
 2. Vercel Project Settings > Root Directory: `work-app`.
 3. Lisa `NEXT_PUBLIC_SUPABASE_URL` ja `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` Production, Preview ja Development keskkonda.
-4. Lisa `GOOGLE_MAPS_ROUTES_API_KEY` serveripoolse environment variable'ina vähemalt Production ja Preview keskkonda. Ära kasuta `NEXT_PUBLIC_` prefiksit.
-5. Build command: `npm run build` (Next.js auto-detect sobib samuti).
-6. Lisa domeen `app.autokorvtostuk.ee`.
-7. Zone DNS-is lisa Verceli poolt näidatud CNAME/A kirje. Kasuta täpselt Verceli antud väärtust, mitte juhuslikku näidis-IP-d.
+4. Google Routes kasutamisel lisa `GOOGLE_MAPS_ROUTES_API_KEY` serveripoolse environment variable'ina. Ära kasuta `NEXT_PUBLIC_` prefiksit.
+5. Build command: `npm run build`.
+6. Domeen on `app.autokorvtostuk.ee`; DNS-i siht tuleb muuta ainult kontrollitud deploy järel.
 
-Kui `GOOGLE_MAPS_ROUTES_API_KEY` puudub või Google Routes API ei vasta, marsruudi salvestatud järjekorda ei muudeta. Kasutaja saab jätkata käsitsi järjestamise ja Waze navigeerimisega.
+Kui Google Routes, OSRM või geokodeerimine ei vasta, marsruudi salvestatud järjekorda automaatselt ei muudeta. Kasutaja saab jätkata käsitsi järjestamise ja Waze navigeerimisega.
 
 ## Mitme peatusega töö kontroll
 
