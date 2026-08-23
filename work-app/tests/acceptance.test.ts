@@ -154,6 +154,20 @@ test('manager and worker edit flows expose shared multi-stop planning actions', 
   assert.match(form, /JobStopsEditor/)
 })
 
+test('operator stop flow requires note and stop photo for done but not skip', () => {
+  const card = readFileSync(resolve(root, 'src/components/ActiveStopCard.tsx'), 'utf8')
+  const actions = readFileSync(resolve(root, 'src/app/operator/jobs/actions.ts'), 'utf8')
+  const uploader = readFileSync(resolve(root, 'src/components/PhotoUploader.tsx'), 'utf8')
+  assert.match(card, /Alusta peatust/)
+  assert.match(card, /Tehtud/)
+  assert.match(card, /Jäta vahele/)
+  assert.match(card, /completionNote/)
+  assert.match(actions, /start_job_stop/)
+  assert.match(actions, /complete_job_stop/)
+  assert.match(actions, /skip_job_stop/)
+  assert.match(uploader, /jobStopId/)
+})
+
 test('PWA manifest and service worker exist', () => {
   assert.equal(existsSync(resolve(root, 'src/app/manifest.ts')), true)
   assert.equal(existsSync(resolve(root, 'public/sw.js')), true)
