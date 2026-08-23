@@ -1,5 +1,6 @@
 export type UserRole = 'manager' | 'operator'
 export type JobStatus = 'uus' | 'kinnitatud' | 'teel' | 'toob' | 'tehtud' | 'vajab_jareltegevust' | 'tuhistatud'
+export type JobStopStatus = 'pending' | 'in_progress' | 'done' | 'skipped'
 export type InvoiceStatus = 'puudub' | 'valmis_arveks' | 'arveldatud'
 
 export interface AppUser {
@@ -58,6 +59,21 @@ export interface PriceBreakdown {
   adjustment: number
   subtotal: number
   total: number
+}
+
+export interface JobStop {
+  id: string
+  jobId: string
+  siteId?: string | null
+  sequenceNo: number
+  name?: string | null
+  address: string
+  description?: string | null
+  status: JobStopStatus
+  actualStart?: string | null
+  actualEnd?: string | null
+  completionNote?: string | null
+  completedBy?: string | null
 }
 
 export interface Job {
