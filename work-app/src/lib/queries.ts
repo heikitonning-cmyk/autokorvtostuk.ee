@@ -9,6 +9,8 @@ export const defaultPricing: PriceSettings = {
   helperHourlyRate: 35,
 }
 
+const siteSelect = 'id,customer_id,name,address,city,county,requires_lift,service_notes,source'
+
 export async function getPricingSettings(): Promise<PriceSettings> {
   const supabase = await createClient()
   const { data } = await supabase.from('settings').select('value').eq('key', 'pricing').maybeSingle()
@@ -19,7 +21,7 @@ export async function getManagerJobs() {
   const supabase = await createClient()
   const from = new Date(Date.now() - 35 * 86400000).toISOString()
   const to = new Date(Date.now() + 35 * 86400000).toISOString()
-  const select = '*, customer:customers(id,name,phone,email), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
+  const select = '*, customer:customers(id,name,phone,email), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
   const [scheduled, unscheduled] = await Promise.all([
     supabase
       .from('jobs')
@@ -38,36 +40,53 @@ export async function getManagerJobs() {
   return [...(unscheduled.data ?? []), ...(scheduled.data ?? [])]
 }
 
+export async function getCustomerSites() {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('customer_sites')
+    .select(siteSelect)
+    .eq('active', true)
+    .order('customer_id')
+    .order('name')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getReferenceData() {
   const supabase = await createClient()
-  const [customers, operators, workTypes, vehicles] = await Promise.all([
+  const [customers, operators, workTypes, vehicles, sites] = await Promise.all([
     supabase.from('customers').select('id,name,contact_name,phone').order('name'),
     supabase.from('users').select('id,name').eq('role', 'operator').eq('active', true).order('name'),
     supabase.from('work_types').select('id,name').eq('active', true).order('name'),
     supabase.from('vehicles').select('id,name,registration_number').eq('active', true).order('name'),
+    supabase.from('customer_sites').select(siteSelect).eq('active', true).order('customer_id').order('name'),
   ])
   return {
     customers: customers.data ?? [],
     operators: operators.data ?? [],
     workTypes: workTypes.data ?? [],
     vehicles: vehicles.data ?? [],
+    sites: sites.data ?? [],
   }
 }
 
 export async function getEditableReferenceData() {
   const supabase = await createClient()
-  const [customers, workTypes, vehicles] = await Promise.all([
+  const [customers, workTypes, vehicles, sites] = await Promise.all([
     supabase.from('customers').select('id,name,contact_name,phone').order('name'),
     supabase.from('work_types').select('id,name').eq('active', true).order('name'),
     supabase.from('vehicles').select('id,name,registration_number').eq('active', true).order('name'),
+    supabase.from('customer_sites').select(siteSelect).eq('active', true).order('customer_id').order('name'),
   ])
   if (customers.error) throw customers.error
   if (workTypes.error) throw workTypes.error
   if (vehicles.error) throw vehicles.error
+  if (sites.error) throw sites.error
   return {
     customers: customers.data ?? [],
     workTypes: workTypes.data ?? [],
     vehicles: vehicles.data ?? [],
+    sites: sites.data ?? [],
   }
 }
 
@@ -75,7 +94,7 @@ export async function getJobDetail(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(*), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_events(*)')
+    .select('*, customer:customers(*), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_events(*)')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -90,7 +109,7 @@ export async function getJobDetail(id: string) {
 
 export async function getWorkerJobs(userId: string) {
   const supabase = await createClient()
-  const select = '*, customer:customers(id,name,phone,email), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number)'
+  const select = '*, customer:customers(id,name,phone,email), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number)'
   const [free, mine] = await Promise.all([
     supabase
       .from('jobs')
@@ -129,7 +148,7 @@ export async function getOperatorTodayJobs(operatorId: string) {
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Tallinn', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(now)
-  const select = '*, customer:customers(id,name,phone), work_type:work_types(id,name)'
+  const select = '*, customer:customers(id,name,phone), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name)'
   const [scheduled, dateOnly] = await Promise.all([
     supabase
       .from('jobs')
@@ -157,7 +176,7 @@ export async function getOperatorJob(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(id,name,phone,email,billing_address), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*)')
+    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*)')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -168,7 +187,7 @@ export async function getCustomers() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customers')
-    .select('*, jobs(id,start_planned,planned_date,status,estimated_total,actual_total)')
+    .select('*, customer_sites(id,name,address,active,requires_lift,source), jobs(id,start_planned,planned_date,status,estimated_total,actual_total)')
     .order('name')
   if (error) throw error
   return data ?? []
