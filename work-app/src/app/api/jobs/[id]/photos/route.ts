@@ -11,16 +11,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!job || (user.role === 'operator' && job.operator_id !== user.id)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const form = await request.formData()
+  const jobStopId = String(form.get('jobStopId') ?? '').trim() || null
+  if (jobStopId) {
+    const { data: stop, error: stopError } = await supabase
+      .from('job_stops')
+      .select('id')
+      .eq('id', jobStopId)
+      .eq('job_id', jobId)
+      .maybeSingle()
+    if (stopError || !stop) return NextResponse.json({ error: 'invalid stop' }, { status: 400 })
+  }
+
   const file = form.get('file')
   if (!(file instanceof File) || !file.type.startsWith('image/')) return NextResponse.json({ error: 'invalid file' }, { status: 400 })
   if (file.size > 12 * 1024 * 1024) return NextResponse.json({ error: 'file too large' }, { status: 413 })
   const category = String(form.get('category') ?? 'during')
   const safeCategory = ['before','during','after','issue'].includes(category) ? category : 'during'
   const ext = file.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg'
-  const path = `${jobId}/${crypto.randomUUID()}.${ext}`
+  const folder = jobStopId ? `${jobId}/${jobStopId}` : jobId
+  const path = `${folder}/${crypto.randomUUID()}.${ext}`
   const { error: uploadError } = await supabase.storage.from('job-photos').upload(path, file, { contentType: file.type, upsert: false })
   if (uploadError) return NextResponse.json({ error: 'upload failed' }, { status: 500 })
-  const { error: rowError } = await supabase.from('job_photos').insert({ job_id: jobId, uploaded_by: user.id, storage_path: path, category: safeCategory })
+  const { error: rowError } = await supabase.from('job_photos').insert({
+    job_id: jobId,
+    job_stop_id: jobStopId,
+    uploaded_by: user.id,
+    storage_path: path,
+    category: safeCategory,
+  })
   if (rowError) {
     await supabase.storage.from('job-photos').remove([path])
     return NextResponse.json({ error: 'metadata failed' }, { status: 500 })
