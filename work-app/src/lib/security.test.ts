@@ -10,6 +10,7 @@ const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_
 const sharedCalendarPath = resolve(here, '../../supabase/migrations/20260823140500_shared_lift_calendar.sql')
 const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_shared_unfinished_job_editing.sql')
 const customerSitesPath = resolve(here, '../../supabase/migrations/20260823150000_customer_sites_and_neste.sql')
+const customerSiteEditPath = resolve(here, '../../supabase/migrations/20260823151000_customer_site_job_editing.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -63,9 +64,10 @@ test('customer sites migration adds reusable sites and 59 Neste stations', () =>
 })
 
 test('customer site migration extends guarded job editing without changing ownership', () => {
-  const sql = readFileSync(customerSitesPath, 'utf8')
+  const sql = readFileSync(customerSiteEditPath, 'utf8')
   assert.match(sql, /p_site_id\s+uuid/i)
   assert.match(sql, /site_id\s*=\s*p_site_id/i)
+  assert.match(sql, /customer_sites/i)
   assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
   assert.doesNotMatch(sql, /operator_id\s*=\s*p_/i)
 })
