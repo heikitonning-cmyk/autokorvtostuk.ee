@@ -34,7 +34,7 @@ create index if not exists jobs_site_idx on public.jobs(site_id);
 drop trigger if exists customer_sites_updated_at on public.customer_sites;
 create trigger customer_sites_updated_at
 before update on public.customer_sites
-for each row execute function public.set_updated_at();
+for each row execute function private.set_updated_at();
 
 alter table public.customer_sites enable row level security;
 
