@@ -72,6 +72,18 @@ test('job forms support customer site selection and new site entry', () => {
   assert.match(edit, /JobLocationFields/)
 })
 
+test('customer CRM lists and adds saved locations', () => {
+  const page = readFileSync(resolve(root, 'src/app/manager/customers/page.tsx'), 'utf8')
+  const actions = readFileSync(resolve(root, 'src/app/manager/customers/actions.ts'), 'utf8')
+  const queries = readFileSync(resolve(root, 'src/lib/queries.ts'), 'utf8')
+  assert.match(page, /Asukohad/)
+  assert.match(page, /\+ Lisa asukoht/)
+  assert.match(page, /customer_sites/)
+  assert.match(actions, /createCustomerSite/)
+  assert.match(actions, /source:\s*'manual'/)
+  assert.match(queries, /customer_sites\(id,name,address,active,requires_lift,source\)/)
+})
+
 test('worker shared work plan exposes edit for any editable job', () => {
   const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
   assert.match(page, /href=\{`\/operator\/jobs\/\$\{job\.id\}\/edit`\}/)
