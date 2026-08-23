@@ -9,7 +9,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <div className="brand-mark">EK</div>
         <p className="eyebrow">Euro Kapital OÜ</p>
         <h1>Tööäpp</h1>
-        <p className="muted">Autokorvtõstuki tööd, operaator ja päeva juhtimine ühes kohas.</p>
+        <p className="muted">Autokorvtõstuki tööd ja päeva juhtimine ühes kohas.</p>
+        {params.registered && <div className="alert success">Konto on loodud. Kui said e-posti kinnituse, kinnita aadress ja logi seejärel sisse.</div>}
         {hasError && <div className="alert danger">Sisselogimine ei õnnestunud. Kontrolli e-posti ja parooli.</div>}
         <form action={login} className="stack">
           <label>E-post<input name="email" type="email" autoComplete="email" required /></label>
