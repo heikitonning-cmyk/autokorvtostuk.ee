@@ -18,6 +18,12 @@ test('v1 contains the critical manager and operator routes', () => {
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
 })
 
+test('new job form exposes separate date and time controls', () => {
+  const page = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
+  assert.match(page, /name="plannedDate"[^>]*type="date"/)
+  assert.match(page, /name="plannedTime"[^>]*type="time"/)
+})
+
 test('PWA manifest and service worker exist', () => {
   assert.equal(existsSync(resolve(root, 'src/app/manifest.ts')), true)
   assert.equal(existsSync(resolve(root, 'public/sw.js')), true)
