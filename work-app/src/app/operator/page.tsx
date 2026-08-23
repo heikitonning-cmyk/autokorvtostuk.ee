@@ -1,31 +1,114 @@
+import Link from 'next/link'
 import { requireView } from '@/lib/session'
-import { getWorkerJobs } from '@/lib/queries'
-import { OperatorJobCard } from '@/components/OperatorJobCard'
+import { getSharedLiftCalendar, getWorkerJobs } from '@/lib/queries'
+import { freeCapacityDays } from '@/lib/dashboard'
+import { formatPlannedTime } from '@/lib/jobs'
+import { StatusBadge } from '@/components/StatusBadge'
+import type { JobStatus } from '@/lib/domain'
+import { claimJob, releaseJob } from './actions'
+
+function tallinnDateKey(value = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Tallinn',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(value)
+}
+
+function jobDateKey(job: any): string | null {
+  if (job.planned_date) return job.planned_date
+  return job.start_planned ? tallinnDateKey(new Date(job.start_planned)) : null
+}
+
+function longDate(date: string) {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString('et-EE', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  })
+}
+
+function PlanJobCard({ job }: { job: any }) {
+  const name = job.object_name || job.customer_name || job.customer?.name || 'Töö'
+  const workType = job.work_type_name || job.work_type?.name || 'Tööliik määramata'
+  const canRelease = job.is_mine && !['toob', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
+
+  return <div className="job-card">
+    <div className="job-card-top">
+      <strong>{formatPlannedTime(job.start_planned, job.planned_time)} · {name}</strong>
+      <StatusBadge status={job.status as JobStatus} />
+    </div>
+    <div className="job-address">{job.address || 'Aadress määramata'}</div>
+    <div className="job-meta"><span>{workType}</span></div>
+
+    {job.is_free ? <form action={claimJob} className="top-gap">
+      <input type="hidden" name="id" value={job.id} />
+      <button className="button primary wide" type="submit">VÕTA TÖÖ</button>
+    </form> : job.is_mine ? <div className="stack top-gap">
+      <Link className="button primary wide" href={`/operator/jobs/${job.id}`}>{job.status === 'toob' ? 'JÄTKA TÖÖD' : 'AVA TÖÖ'}</Link>
+      {canRelease && <form action={releaseJob}>
+        <input type="hidden" name="id" value={job.id} />
+        <button className="button secondary wide" type="submit">Vabasta töö</button>
+      </form>}
+    </div> : <div className="job-meta"><span>Hõivatud</span></div>}
+  </div>
+}
 
 export default async function OperatorPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireView('worker')
-  const [{ freeJobs, mineJobs }, params] = await Promise.all([getWorkerJobs(user.id), searchParams])
-  const active = mineJobs.find((job: any) => job.status === 'toob')
-  const mineRest = mineJobs.filter((job: any) => job.id !== active?.id)
+  const [jobs, { freeJobs, mineJobs }, params] = await Promise.all([
+    getSharedLiftCalendar(),
+    getWorkerJobs(user.id),
+    searchParams,
+  ])
   const errorText = Array.isArray(params.error) ? params.error[0] : params.error
+  const today = tallinnDateKey()
+
+  const freeDays = freeCapacityDays(jobs.map((job: any) => ({
+    start_planned: job.start_planned,
+    end_planned: job.end_planned,
+    status: job.status as JobStatus,
+  })))
+
+  const visibleJobs = jobs.filter((job: any) => {
+    const date = jobDateKey(job)
+    return job.status === 'toob' || Boolean(date && date >= today)
+  })
+
+  const groups = new Map<string, any[]>()
+  for (const job of visibleJobs) {
+    const date = jobDateKey(job)
+    if (date) groups.set(date, [...(groups.get(date) ?? []), job])
+  }
+
+  const unscheduled = [
+    ...freeJobs.filter((job: any) => !job.start_planned && !job.planned_date).map((job: any) => ({ ...job, is_free: true, is_mine: false })),
+    ...mineJobs.filter((job: any) => !job.start_planned && !job.planned_date).map((job: any) => ({ ...job, is_free: false, is_mine: true })),
+  ]
 
   return <div className="page stack-lg operator-page">
-    <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Vali vaba töö endale või jätka oma tööga.</p></div>
+    <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Ühe tõstuki ühine tööplaan ja vabad ajad.</p></div>
     {params.claimed && <div className="alert success">Töö on nüüd sinu.</div>}
     {params.released && <div className="alert success">Töö vabastati ja on jälle teistele nähtav.</div>}
     {params.done && <div className="alert success">Töö lõpetatud ja salvestatud.</div>}
     {errorText && <div className="alert danger">{errorText}</div>}
 
-    {active && <section><p className="eyebrow">Minu aktiivne töö</p><OperatorJobCard job={active} hero mode="mine" /></section>}
-
     <section>
-      <div className="section-title"><h2>Minu tööd</h2><span className="count">{mineRest.length}</span></div>
-      <div className="stack">{mineRest.length ? mineRest.map((job: any) => <OperatorJobCard key={job.id} job={job} mode="mine" />) : <div className="empty">Sul ei ole praegu võetud töid.</div>}</div>
+      <div className="section-title"><h2>Vabad aknad · 7 päeva</h2></div>
+      <div className="capacity-row">{freeDays.length ? freeDays.map((day) => <div key={day.date} className="capacity-chip">
+        <strong>{new Date(`${day.date}T12:00:00Z`).toLocaleDateString('et-EE', { weekday: 'short', day: 'numeric', month: 'numeric' })}</strong>
+        <span>{day.freeHours} h vaba</span>
+      </div>) : <div className="empty">Järgmise 7 päeva tööpäevad on täis.</div>}</div>
     </section>
 
     <section>
-      <div className="section-title"><h2>Vabad tööd</h2><span className="count">{freeJobs.length}</span></div>
-      <div className="stack">{freeJobs.length ? freeJobs.map((job: any) => <OperatorJobCard key={job.id} job={job} mode="free" />) : <div className="empty">Vabu töid praegu ei ole.</div>}</div>
+      <div className="section-title"><h2>Tööplaan</h2></div>
+      <div className="calendar-list">{[...groups.entries()].map(([date, dayJobs]) => <section key={date}>
+        <h2>{longDate(date)}</h2>
+        <div className="job-list">{dayJobs.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>
+      </section>)}
+      {unscheduled.length > 0 && <section>
+        <h2>Aeg määramata</h2>
+        <div className="job-list">{unscheduled.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>
+      </section>}
+      {visibleJobs.length === 0 && unscheduled.length === 0 && <div className="empty">Töid praegu ei ole.</div>}</div>
     </section>
   </div>
 }
