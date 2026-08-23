@@ -131,6 +131,17 @@ test('worker landing page combines shared lift availability and work plan', () =
   assert.match(oldCalendar, /redirect\(['"]\/operator['"]\)/)
 })
 
+test('multi-stop editor supports search, many selected sites and mobile reorder', () => {
+  const picker = readFileSync(resolve(root, 'src/components/StopPicker.tsx'), 'utf8')
+  const order = readFileSync(resolve(root, 'src/components/StopOrderEditor.tsx'), 'utf8')
+  assert.match(picker, /Otsi nime, aadressi või linna/)
+  assert.match(picker, /Valitud/)
+  assert.match(picker, /Lisa .* peatust tööle/)
+  assert.match(picker, /type="checkbox"/)
+  assert.match(order, /DndContext/)
+  assert.match(order, /SortableContext/)
+})
+
 test('PWA manifest and service worker exist', () => {
   assert.equal(existsSync(resolve(root, 'src/app/manifest.ts')), true)
   assert.equal(existsSync(resolve(root, 'public/sw.js')), true)
