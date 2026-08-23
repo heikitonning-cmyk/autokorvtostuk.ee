@@ -12,7 +12,7 @@ The target production behavior is:
 
 and routing is:
 
-`Google Routes (when configured and healthy) -> Nominatim geocoding + OSRM fallback -> manual stop ordering + Waze navigation`
+`Google Routes (when configured and healthy) -> cached coordinates/Nominatim -> OSRM matrix + local optimizer -> manual stop ordering + Waze navigation`
 
 The fallback must never block job execution.
 
@@ -24,6 +24,7 @@ This design covers:
 - keeping Supabase as the existing production data/auth/storage backend;
 - keeping Vercel as an optional secondary deployment path rather than a release blocker;
 - adding persisted coordinates for customer sites and job-stop snapshots;
+- adding a normalized address geocode cache for manual stops/endpoints and repeated addresses;
 - server-side Nominatim geocoding with strict caching and policy compliance;
 - server-side OSRM matrix routing using the existing deterministic nearest-neighbor + 2-opt optimizer;
 - routing provider fallback and error handling;
@@ -87,7 +88,7 @@ No production custom-domain change is made until a Workers preview passes the sm
 
 ## 2. Coordinate Data Model
 
-OSRM consumes longitude/latitude coordinates, not free-form addresses. We therefore persist geocoding results rather than geocoding the same addresses repeatedly.
+OSRM consumes longitude/latitude coordinates, not free-form addresses. Geocoding results must therefore be persisted and reused rather than requested repeatedly.
 
 ### 2.1 Customer sites
 
@@ -99,7 +100,7 @@ Add nullable columns to `customer_sites`:
 - `geocode_source text`
 - `geocode_address_snapshot text`
 
-Coordinates represent the currently saved site address. If a site's address changes, the old coordinate cache becomes invalid and is cleared or replaced before the new address is treated as geocoded.
+Coordinates represent the currently saved site address. If a site's address changes, the old coordinate cache is invalidated before the new address is treated as geocoded.
 
 ### 2.2 Job stops
 
@@ -108,20 +109,34 @@ Add nullable snapshot columns to `job_stops`:
 - `latitude_snapshot double precision`
 - `longitude_snapshot double precision`
 
-When a stop is created from a saved customer site and valid cached coordinates exist, copy them to the job-stop snapshot. This keeps historical jobs stable if a customer site's address or coordinates later change.
+When a stop is created from a saved customer site and valid cached coordinates exist, copy them to the job-stop snapshot. Historical jobs therefore remain stable if a customer site's address or coordinates later change.
 
-A one-off manual stop may initially have null coordinates. It is geocoded on demand and the successful result is saved to that stop snapshot.
+A one-off manual stop may initially have null coordinates. It is resolved through the generic geocode cache and the successful result is then copied to the job-stop snapshot.
 
-### 2.3 Route endpoints
+### 2.3 Generic geocode cache
 
-The route start/end may still be Luige, a saved site or a manual address. Effective routing points use this resolution order:
+Add `geocode_cache` for addresses that are not naturally persisted as customer sites, including manual route endpoints and repeated one-off addresses.
 
-1. saved site coordinate if available and consistent with its current address;
-2. cached endpoint coordinate if endpoint persistence is later added;
-3. on-demand geocoding of the current endpoint address;
-4. if geocoding fails, optimization is unavailable but manual order and Waze remain available.
+Required fields:
 
-For this release we avoid adding additional endpoint coordinate columns unless implementation shows they are needed. The Luige coordinate may be configured as a known constant/cache entry to avoid repeated public geocoder requests.
+- `normalized_address text primary key`
+- `address_snapshot text not null`
+- `latitude double precision not null`
+- `longitude double precision not null`
+- `source text not null`
+- `geocoded_at timestamptz not null default now()`
+
+Address normalization is deterministic and server-side: trim, collapse whitespace, lowercase for the cache key, while retaining the human-readable snapshot separately.
+
+Resolution order for any routing address is:
+
+1. valid saved customer-site coordinates when a site is known;
+2. job-stop snapshot coordinates when the stop already has them;
+3. `geocode_cache` by normalized address;
+4. one rate-limited Nominatim request, then persist to `geocode_cache` and copy to the owning row where applicable;
+5. if geocoding fails, optimization is unavailable but manual order and Waze remain available.
+
+The Luige base address uses the same cache path and should be pre-cached during the one-time bootstrap so normal route optimization never needs to geocode Luige repeatedly.
 
 ## 3. Nominatim Geocoding
 
@@ -134,11 +149,11 @@ The implementation must comply with the public Nominatim usage policy:
 - absolute maximum one request per second;
 - one server-side request stream, not distributed parallel geocoding;
 - identifying `User-Agent` or Referer, not a stock HTTP-library user agent;
-- OSM attribution where suitable;
+- OSM attribution displayed in the application where fallback geocoding/routing is used;
 - results cached locally;
 - repeated identical addresses must not repeatedly hit the public service;
 - no client-side autocomplete backed by the public Nominatim endpoint;
-- bulk/bootstrap geocoding must be serialized and rate-limited.
+- one-time bootstrap/backfill geocoding must be serialized on one worker/process and rate-limited.
 
 The server adapter must inject a sleep/rate limiter and must be testable with fake fetch/sleep implementations.
 
@@ -153,14 +168,21 @@ A successful response must contain finite latitude and longitude values. Empty/a
 For saved customer sites:
 
 - if `latitude`, `longitude` and `geocode_address_snapshot === current address` are present, do not call Nominatim;
-- otherwise geocode once, then persist the coordinates and current address snapshot.
+- otherwise check `geocode_cache`;
+- only on cache miss call Nominatim, then persist both the generic cache and site coordinates.
 
 For job stops:
 
 - if snapshot coordinates are present, use them directly;
-- otherwise geocode `address_snapshot` and persist the result on that job stop.
+- otherwise check `geocode_cache` for `address_snapshot`;
+- only on cache miss call Nominatim, then persist the generic cache and job-stop snapshot.
 
-This makes the 59 known Neste stations a mostly one-time geocoding cost rather than a per-route cost.
+For manual route endpoints:
+
+- always check `geocode_cache` first;
+- only a cache miss may call Nominatim.
+
+This makes the 59 known Neste stations a mostly one-time geocoding cost rather than a per-route cost. A one-time serialized bootstrap may pre-geocode the known station addresses and Luige, at no more than one Nominatim request per second.
 
 ## 4. OSRM Routing Fallback
 
@@ -174,7 +196,7 @@ We do not depend on OSRM Trip ordering as the primary algorithm because the offi
 
 Create a provider-independent OSRM adapter that:
 
-1. receives resolved `RoutePoint` objects with stable IDs and coordinates;
+1. receives resolved route points with stable IDs, longitude and latitude;
 2. requests OSRM `/table/v1/driving/...` with `annotations=duration,distance`;
 3. maps response matrix cells back to stable point IDs;
 4. rejects `null`/unroutable matrix cells rather than inventing a cost;
@@ -182,7 +204,7 @@ Create a provider-independent OSRM adapter that:
 6. uses the existing deterministic `optimizeFixedEndpoints` function for the proposal;
 7. returns the existing `RouteOptimizationResult` shape with source `osrm-matrix`.
 
-For large jobs, the adapter may chunk source/destination groups so a single public-demo request is not excessive and URL lengths remain controlled. Chunk size is an implementation constant covered by tests, not a user-visible stop limit.
+For large jobs, the adapter chunks source/destination groups so a single public-demo request is not excessive and URL lengths remain controlled. Chunk size is an implementation constant covered by tests, not a user-visible stop limit.
 
 There is no application-level stop-count limit.
 
@@ -192,7 +214,7 @@ There is no application-level stop-count limit.
 
 - its base URL is configurable;
 - provider failures are expected and non-destructive;
-- later migration to a self-hosted or commercial OSRM-compatible endpoint must require no UI/data-model redesign;
+- later migration to a self-hosted or commercial OSRM-compatible endpoint requires no UI/data-model redesign;
 - a failed OSRM call never changes persisted stop order.
 
 ## 5. Routing Provider Selection
@@ -205,28 +227,30 @@ When Google is configured:
 
 1. try Google Routes optimization;
 2. if Google succeeds, return the Google proposal;
-3. if Google fails because of provider/network/quota/runtime error, try OSRM fallback;
+3. if Google fails because of provider/network/quota/runtime error, resolve coordinates and try OSRM fallback;
 4. if OSRM succeeds, return the OSRM proposal;
 5. if both fail, return a stable non-destructive routing error.
 
 When Google is not configured:
 
-1. resolve/geocode coordinates;
+1. resolve coordinates from saved snapshots/cache/Nominatim;
 2. use OSRM directly;
-3. if OSRM/geocoding fails, leave manual order unchanged.
+3. if geocoding or OSRM fails, leave manual order unchanged.
 
-### 5.2 User-visible source
+### 5.2 User-visible source and attribution
 
-The UI may show a compact source label:
+The UI shows a compact result label:
 
 - `Liiklusinfoga` for Google;
 - `Tavapärase sõiduaja järgi` for OSRM.
 
-The user does not need to understand provider names to use the feature.
+When OSM/Nominatim/OSRM fallback is used, the proposal panel also displays a compact attribution such as `Andmed © OpenStreetMap contributors`.
+
+The user does not need provider names to understand the operational difference.
 
 ### 5.3 Manual-control invariant
 
-Provider fallback must preserve the already-approved manual-control rules:
+Provider fallback preserves the already-approved manual-control rules:
 
 - optimization runs only after explicit button press;
 - calculation returns a proposal only;
@@ -243,12 +267,12 @@ Routing is optional operational assistance, never a prerequisite for doing the j
 Failure hierarchy:
 
 1. Google unavailable -> try OSRM;
-2. missing coordinates -> try cached or Nominatim geocoding;
+2. missing coordinates -> use saved values/cache or rate-limited Nominatim;
 3. Nominatim unavailable/rate-limited/no result -> do not optimize that route;
 4. OSRM unavailable/unroutable -> do not optimize;
 5. manual order + Waze remains fully usable.
 
-Stable UI copy should distinguish:
+Stable UI copy distinguishes:
 
 - fallback route successfully calculated without live traffic;
 - address could not be located;
@@ -320,7 +344,7 @@ If the custom-domain validation fails:
 - Google API key remains server-only.
 - Nominatim and OSRM calls happen server-side; browser clients do not receive private routing config.
 - Geocoder requests contain only routing addresses needed to calculate the route; no customer phone/email or job notes are sent.
-- Coordinates stored in Supabase follow the same access controls as their site/job rows.
+- Coordinates and geocode cache rows in Supabase are accessible only through server-side routing logic or appropriate authenticated/RLS paths; they are not exposed as a public location directory.
 - Cloudflare secrets are configured outside Git and never committed.
 
 ## 9. Testing Strategy
@@ -329,9 +353,12 @@ Every implementation task follows TDD.
 
 Required unit tests:
 
+- address normalization is deterministic;
 - Nominatim request headers, country/address mapping, 1 req/s limiter and invalid-response handling;
-- cache hit bypasses Nominatim;
-- address change invalidates saved site coordinate cache;
+- generic cache hit bypasses Nominatim;
+- customer-site cache hit bypasses Nominatim;
+- address change invalidates saved site coordinates;
+- manual route endpoint uses generic cache;
 - OSRM Table request/response mapping;
 - null/unroutable matrix rejection;
 - duplicate job stops remain separate by stable ID even when coordinates match;
@@ -348,7 +375,8 @@ Required integration/acceptance tests:
 - Cloudflare configuration files/scripts exist;
 - no `NEXT_PUBLIC_` routing secrets;
 - manual Waze fallback remains present;
-- UI distinguishes traffic-aware vs ordinary-time fallback when useful;
+- OSM attribution is present when fallback result is displayed;
+- UI distinguishes traffic-aware vs ordinary-time fallback;
 - existing multi-stop acceptance tests remain green.
 
 ## 10. Operational Constraints
@@ -361,6 +389,7 @@ Required integration/acceptance tests:
 - Do not make public Nominatim or OSRM availability mandatory for job execution.
 - Do not add address autocomplete to the public Nominatim service.
 - Cache geocoding results persistently and respect the Nominatim public usage policy.
+- One-time Nominatim bootstrap/backfill is serialized, one process, no more than one request per second, and never becomes a recurring bulk job.
 
 ## 11. Success Criteria
 
@@ -368,12 +397,13 @@ The release is successful when:
 
 1. the exact `app-v1-build` application can build and run in Cloudflare Workers/OpenNext;
 2. Supabase production data/auth/storage work from the Workers runtime;
-3. a multi-stop route can be optimized with no Google API key using Nominatim-cached coordinates + OSRM;
-4. Google remains preferred automatically when later configured;
-5. provider failures never change route order and never stop workers doing jobs;
-6. 5-stop Neste preview/live smoke passes;
-7. `app.autokorvtostuk.ee` serves the verified Workers deployment;
-8. Vercel build-rate-limit is no longer capable of blocking releases.
+3. a multi-stop route can be optimized with no Google API key using cached/Nominatim coordinates + OSRM;
+4. repeated known addresses do not cause repeated Nominatim requests;
+5. Google remains preferred automatically when later configured;
+6. provider failures never change route order and never stop workers doing jobs;
+7. 5-stop Neste preview/live smoke passes;
+8. `app.autokorvtostuk.ee` serves the verified Workers deployment;
+9. Vercel build-rate-limit is no longer capable of blocking releases.
 
 ## References checked 2026-08-23
 
