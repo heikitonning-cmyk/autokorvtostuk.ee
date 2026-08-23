@@ -29,6 +29,14 @@ test('unscheduled confirmed job is not treated as overdue', () => {
   assert.equal(result.todayJobs.length, 0)
 })
 
+test('date-only job appears in today without becoming overdue', () => {
+  const result = managerSummary([
+    { id: 'd', status: 'kinnitatud', start_planned: null, planned_date: '2026-08-22', estimated_total: 90, actual_total: null } as any,
+  ], new Date('2026-08-22T10:30:00+03:00'))
+  assert.equal(result.todayJobs.length, 1)
+  assert.equal(result.overdueNotStarted.length, 0)
+})
+
 test('free capacity shows next seven days with at least two hours available', async () => {
   const { freeCapacityDays } = await import('./dashboard.ts')
   const result = freeCapacityDays([
