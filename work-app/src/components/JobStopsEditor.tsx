@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { StopPicker, type StopDraft } from '@/components/StopPicker'
 import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEditor'
+import { RouteEndpointFields } from '@/components/RouteEndpointFields'
 import type { SiteOption } from '@/lib/job-stops'
 import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction } from '@/app/job-stop-actions'
 
@@ -24,14 +25,18 @@ export function JobStopsEditor({
   stops = [],
   jobId,
   routeRevision = 0,
+  routeStartSiteId = '',
   routeStartAddress = '',
+  routeEndSiteId = '',
   routeEndAddress = '',
 }: {
   sites: SiteOption[]
   stops?: StopOrderItem[]
   jobId?: string
   routeRevision?: number
+  routeStartSiteId?: string
   routeStartAddress?: string
+  routeEndSiteId?: string
   routeEndAddress?: string
 }) {
   const router = useRouter()
@@ -39,13 +44,15 @@ export function JobStopsEditor({
   const [pickerOpen, setPickerOpen] = useState(stops.length === 0)
   const [revision, setRevision] = useState(Number(routeRevision || 0))
   const [draftStops, setDraftStops] = useState<DraftStop[]>([])
+  const [startSiteId, setStartSiteId] = useState(routeStartSiteId)
   const [startAddress, setStartAddress] = useState(routeStartAddress)
+  const [endSiteId, setEndSiteId] = useState(routeEndSiteId)
   const [endAddress, setEndAddress] = useState(routeEndAddress)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => setRevision(Number(routeRevision || 0)), [routeRevision])
-  useEffect(() => setStartAddress(routeStartAddress), [routeStartAddress])
-  useEffect(() => setEndAddress(routeEndAddress), [routeEndAddress])
+  useEffect(() => { setStartSiteId(routeStartSiteId); setStartAddress(routeStartAddress) }, [routeStartSiteId, routeStartAddress])
+  useEffect(() => { setEndSiteId(routeEndSiteId); setEndAddress(routeEndAddress) }, [routeEndSiteId, routeEndAddress])
 
   const shownStops = jobId ? stops : draftStops
   const initialStopsJson = useMemo(() => JSON.stringify(draftStops.map((stop) => ({
@@ -58,10 +65,7 @@ export function JobStopsEditor({
   function addSelected(selected: StopDraft[]) {
     setError(null)
     if (!jobId) {
-      setDraftStops((current) => [
-        ...current,
-        ...selected.map((draft, index) => toDraft(draft, current.length + index)),
-      ])
+      setDraftStops((current) => [...current, ...selected.map((draft, index) => toDraft(draft, current.length + index))])
       setPickerOpen(false)
       return
     }
@@ -69,12 +73,7 @@ export function JobStopsEditor({
     const form = new FormData()
     form.set('jobId', jobId)
     form.set('expectedRevision', String(revision))
-    form.set('stopsJson', JSON.stringify(selected.map((draft) => ({
-      siteId: draft.siteId,
-      name: draft.name,
-      address: draft.address,
-      description: draft.description,
-    }))))
+    form.set('stopsJson', JSON.stringify(selected.map((draft) => ({ siteId: draft.siteId, name: draft.name, address: draft.address, description: draft.description }))))
     startTransition(async () => {
       const result = await addStopsAction(form)
       if (!result.ok) {
@@ -93,12 +92,10 @@ export function JobStopsEditor({
     if (!jobId) {
       setDraftStops((current) => {
         const byId = new Map(current.map((stop) => [stop.id, stop]))
-        return pendingStopIds
-          .map((id, index) => {
-            const stop = byId.get(id)
-            return stop ? { ...stop, sequence_no: index + 1 } : null
-          })
-          .filter((stop): stop is DraftStop => Boolean(stop))
+        return pendingStopIds.map((id, index) => {
+          const stop = byId.get(id)
+          return stop ? { ...stop, sequence_no: index + 1 } : null
+        }).filter((stop): stop is DraftStop => Boolean(stop))
       })
       return
     }
@@ -125,7 +122,9 @@ export function JobStopsEditor({
     const form = new FormData()
     form.set('jobId', jobId)
     form.set('expectedRevision', String(revision))
+    form.set('routeStartSiteId', startSiteId)
     form.set('routeStartAddress', startAddress)
+    form.set('routeEndSiteId', endSiteId)
     form.set('routeEndAddress', endAddress)
     startTransition(async () => {
       const result = await updateRouteEndpointsAction(form)
@@ -144,14 +143,20 @@ export function JobStopsEditor({
     <div><p className="eyebrow">Marsruut</p><h2>Peatused <span className="count">{shownStops.length}</span></h2></div>
     {error && <div className="alert danger">{error}</div>}
 
-    <div className="form-grid two">
-      <label>Algus<input value={startAddress} onChange={(event) => setStartAddress(event.target.value)} placeholder="Luige (vaikimisi)" /></label>
-      <label>Lõpp<input value={endAddress} onChange={(event) => setEndAddress(event.target.value)} placeholder="Luige (vaikimisi)" /></label>
-    </div>
-    {jobId && <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>}
+    {jobId ? <>
+      <RouteEndpointFields
+        sites={sites}
+        routeStartSiteId={startSiteId}
+        routeStartAddress={startAddress}
+        routeEndSiteId={endSiteId}
+        routeEndAddress={endAddress}
+        onStartChange={(value) => { setStartSiteId(value.siteId); setStartAddress(value.address) }}
+        onEndChange={(value) => { setEndSiteId(value.siteId); setEndAddress(value.address) }}
+      />
+      <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>
+    </> : <p className="muted">Marsruudi algus ja lõpp: Luige (vaikimisi). Pärast töö salvestamist saad neid vajadusel muuta.</p>}
 
     {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} />}
-
     <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
     {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
     {isPending && <small className="muted">Salvestan marsruuti…</small>}
