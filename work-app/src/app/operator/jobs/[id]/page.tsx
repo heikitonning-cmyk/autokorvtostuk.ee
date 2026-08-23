@@ -7,6 +7,7 @@ import { ElapsedTimer } from '@/components/ElapsedTimer'
 import { PhotoUploader } from '@/components/PhotoUploader'
 import { ActiveStopCard } from '@/components/ActiveStopCard'
 import { JobStopsEditor } from '@/components/JobStopsEditor'
+import { RouteOptimizationPanel } from '@/components/RouteOptimizationPanel'
 import { saveWorkNote, startJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
@@ -45,6 +46,8 @@ export default async function OperatorJobPage({ params, searchParams }: { params
   const editable = !locked.has(job.status)
   const stops = [...(job.job_stops ?? [])].sort((a: any, b: any) => Number(a.sequence_no) - Number(b.sequence_no))
   const hasStops = stops.length > 0
+  const pendingCount = stops.filter((stop: any) => stop.status === 'pending').length
+  const routeHasProgress = Boolean(job.actual_start) || stops.some((stop: any) => stop.status !== 'pending' || Boolean(stop.actual_start))
   const currentStop = stops.find((stop: any) => stop.status === 'in_progress') ?? nextPendingStop(stops)
   const stopsResolved = hasStops && canFinishStops(stops)
   const rawError = Array.isArray(query.error) ? query.error[0] : query.error
@@ -67,6 +70,8 @@ export default async function OperatorJobPage({ params, searchParams }: { params
 
     {hasStops && currentStop && <ActiveStopCard jobId={job.id} stop={currentStop} canOperate={isMine && job.status === 'toob'} />}
     {hasStops && !currentStop && stopsResolved && <section className="detail-card important"><h2>Kõik peatused on lahendatud</h2><p>Võid tööpäeva lõpetada.</p></section>}
+
+    {editable && hasStops && pendingCount >= 2 && routeHasProgress && <RouteOptimizationPanel jobId={job.id} mode="remaining" routeRevision={job.route_revision ?? 0} />}
 
     {editable && hasStops && <JobStopsEditor
       sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
