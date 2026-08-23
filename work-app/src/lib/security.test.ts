@@ -11,6 +11,7 @@ const sharedCalendarPath = resolve(here, '../../supabase/migrations/202608231405
 const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_shared_unfinished_job_editing.sql')
 const customerSitesPath = resolve(here, '../../supabase/migrations/20260823150000_customer_sites_and_neste.sql')
 const customerSiteEditPath = resolve(here, '../../supabase/migrations/20260823151000_customer_site_job_editing.sql')
+const siteBackfillPath = resolve(here, '../../supabase/migrations/20260823153000_backfill_job_sites.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -71,6 +72,17 @@ test('customer site migration extends guarded job editing without changing owner
   assert.match(sql, /customer_sites/i)
   assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
   assert.doesNotMatch(sql, /operator_id\s*=\s*p_/i)
+})
+
+test('legacy jobs are safely linked to a matching customer site by object name', () => {
+  const sql = readFileSync(siteBackfillPath, 'utf8')
+  assert.match(sql, /update public\.jobs\s+j/i)
+  assert.match(sql, /from public\.customer_sites\s+s/i)
+  assert.match(sql, /j\.customer_id\s*=\s*s\.customer_id/i)
+  assert.match(sql, /lower\(trim\(j\.object_name\)\)\s*=\s*lower\(trim\(s\.name\)\)/i)
+  assert.match(sql, /site_id\s*=\s*s\.id/i)
+  assert.match(sql, /s\.address/i)
+  assert.match(sql, /j\.site_id\s+is\s+null/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
