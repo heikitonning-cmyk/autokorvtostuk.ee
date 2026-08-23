@@ -7,7 +7,7 @@ import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEdito
 import { RouteEndpointFields } from '@/components/RouteEndpointFields'
 import { RouteOptimizationPanel } from '@/components/RouteOptimizationPanel'
 import type { SiteOption } from '@/lib/job-stops'
-import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction, updateStopDescriptionAction } from '@/app/job-stop-actions'
+import { addStopsAction, removeStopAction, reorderStopsAction, updateRouteEndpointsAction, updateStopDescriptionAction } from '@/app/job-stop-actions'
 
 type DraftStop = StopOrderItem & { siteId: string | null }
 
@@ -119,6 +119,31 @@ export function JobStopsEditor({
     })
   }
 
+  function removeStop(stopId: string) {
+    setError(null)
+    if (!jobId) {
+      setDraftStops((current) => current
+        .filter((stop) => stop.id !== stopId)
+        .map((stop, index) => ({ ...stop, sequence_no: index + 1 })))
+      return
+    }
+
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('stopId', stopId)
+    form.set('expectedRevision', String(revision))
+    startTransition(async () => {
+      const result = await removeStopAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Peatuse eemaldamine ei õnnestunud. Eemaldada saab ainult ootel peatust.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
   function saveDescription(stopId: string, description: string) {
     if (!jobId) return
     setError(null)
@@ -179,7 +204,7 @@ export function JobStopsEditor({
       <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>
     </> : <p className="muted">Marsruudi algus ja lõpp: Luige (vaikimisi). Pärast töö salvestamist saad neid vajadusel muuta.</p>}
 
-    {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} onDescriptionSave={jobId ? saveDescription : undefined} />}
+    {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} onDescriptionSave={jobId ? saveDescription : undefined} onRemove={removeStop} />}
     {jobId && !hasStarted && pendingCount >= 2 && <RouteOptimizationPanel jobId={jobId} mode="all" routeRevision={revision} />}
     <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
     {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
