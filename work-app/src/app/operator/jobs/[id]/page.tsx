@@ -20,7 +20,18 @@ const stopErrorText: Record<string, string> = {
   'stop-state': 'Peatuse olek muutus. Värskendasin töö — proovi uuesti.',
   'not-assigned': 'Seda peatust saab teostada ainult töö võtnud kasutaja.',
   'stale-route': 'Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.',
+  'stops-open': 'Tööd ei saa lõpetada enne, kui kõik peatused on tehtud või vahele jäetud.',
 }
+
+function stopDuration(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return '—'
+  const minutes = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000))
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return hours ? `${hours} h ${remainder} min` : `${remainder} min`
+}
+
+const stopStatus = (status: string) => status === 'done' ? 'Tehtud' : status === 'skipped' ? 'Vahele jäetud' : status === 'in_progress' ? 'Töös' : 'Ootel'
 
 export default async function OperatorJobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireView('worker')
@@ -50,7 +61,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
 
     <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
 
-    {hasStops && <section className="detail-card"><strong>Peatused: {stops.length}</strong><p className="muted">Tehtud {stops.filter((s:any)=>s.status==='done').length} · Vahele jäetud {stops.filter((s:any)=>s.status==='skipped').length} · Ootel {stops.filter((s:any)=>s.status==='pending').length}</p></section>}
+    {hasStops && <section className="detail-card stack"><div><h2>Peatused</h2><p className="muted">Kokku {stops.length} · Tehtud {stops.filter((s:any)=>s.status==='done').length} · Vahele jäetud {stops.filter((s:any)=>s.status==='skipped').length} · Ootel {stops.filter((s:any)=>s.status==='pending').length}</p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id}><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}</div>)}</div></section>}
 
     {isMine && ['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
 
