@@ -13,6 +13,7 @@ const customerSitesPath = resolve(here, '../../supabase/migrations/2026082315000
 const customerSiteEditPath = resolve(here, '../../supabase/migrations/20260823151000_customer_site_job_editing.sql')
 const siteBackfillPath = resolve(here, '../../supabase/migrations/20260823153000_backfill_job_sites.sql')
 const multiStopPath = resolve(here, '../../supabase/migrations/20260823160000_multi_stop_job_foundation.sql')
+const stopMutationsPath = resolve(here, '../../supabase/migrations/20260823161000_multi_stop_job_mutations.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -100,6 +101,21 @@ test('multi-stop schema supports ordered duplicate site visits and stop photos',
   assert.match(sql, /execute function private\.set_updated_at\(\)/i)
   assert.match(sql, /base_location/i)
   assert.match(sql, /Luige/i)
+})
+
+test('multi-stop mutations guard stale reorders and operator execution', () => {
+  const sql = readFileSync(stopMutationsPath, 'utf8')
+  assert.match(sql, /create or replace function public\.add_job_stops/i)
+  assert.match(sql, /create or replace function public\.reorder_job_stops/i)
+  assert.match(sql, /route_revision\s*=\s*route_revision\s*\+\s*1/i)
+  assert.match(sql, /route_revision\s*=\s*p_expected_revision/i)
+  assert.match(sql, /create or replace function public\.start_job_stop/i)
+  assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
+  assert.match(sql, /create or replace function public\.complete_job_stop/i)
+  assert.match(sql, /completion_note/i)
+  assert.match(sql, /job_photos/i)
+  assert.match(sql, /create or replace function public\.skip_job_stop/i)
+  assert.match(sql, /insert into public\.job_events/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
