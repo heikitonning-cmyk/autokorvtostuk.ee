@@ -5,7 +5,8 @@
   "compatibility_date": "2026-08-23",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "NOMINATIM_BASE_URL": "https://nominatim.openstreetmap.org"
+    "NOMINATIM_BASE_URL": "https://nominatim.openstreetmap.org",
+    "ROUTING_USER_AGENT": "autokorvtostuk.ee/1.0 (+https://autokorvtostuk.ee)"
   },
   "durable_objects": {
     "bindings": [
