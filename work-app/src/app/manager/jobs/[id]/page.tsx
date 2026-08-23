@@ -11,6 +11,16 @@ const dt = (v: string | null) => v ? new Intl.DateTimeFormat('et-EE', { dateStyl
 const money = (v: number | null) => v == null ? '—' : `${Number(v).toFixed(2)} €`
 const locked = new Set(['tehtud', 'vajab_jareltegevust', 'tuhistatud'])
 
+function stopDuration(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return '—'
+  const minutes = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000))
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return hours ? `${hours} h ${remainder} min` : `${remainder} min`
+}
+
+const stopStatus = (status: string) => status === 'done' ? 'Tehtud' : status === 'skipped' ? 'Vahele jäetud' : status === 'in_progress' ? 'Töös' : 'Ootel'
+
 export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
   const query = await searchParams
@@ -30,7 +40,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     {waze && stops.length === 0 && <a className="button secondary wide" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>}
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
 
-    {stops.length > 0 && <section className="detail-card"><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></section>}
+    {stops.length > 0 && <section className="detail-card stack"><div><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id}><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}</div>)}</div></section>}
 
     {editable && stops.length > 0 && <JobStopsEditor
       sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
