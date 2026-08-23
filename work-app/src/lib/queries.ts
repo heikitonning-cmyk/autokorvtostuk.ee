@@ -52,7 +52,7 @@ export async function getManagerJobs() {
   const supabase = await createClient()
   const from = new Date(Date.now() - 35 * 86400000).toISOString()
   const to = new Date(Date.now() + 35 * 86400000).toISOString()
-  const select = '*, customer:customers(id,name,phone,email), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
+  const select = '*, customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
   const [scheduled, unscheduled] = await Promise.all([
     supabase
       .from('jobs')
@@ -136,7 +136,7 @@ export async function getJobDetail(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(*), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_stops(*), job_events(*)')
+    .select('*, customer:customers(*), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_stops(*), job_events(*)')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -146,7 +146,7 @@ export async function getJobDetail(id: string) {
 
 export async function getWorkerJobs(userId: string) {
   const supabase = await createClient()
-  const select = '*, customer:customers(id,name,phone,email), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number)'
+  const select = '*, customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number)'
   const [free, mine] = await Promise.all([
     supabase
       .from('jobs')
@@ -185,7 +185,7 @@ export async function getOperatorTodayJobs(operatorId: string) {
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Tallinn', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(now)
-  const select = '*, customer:customers(id,name,phone), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name)'
+  const select = '*, customer:customers(id,name,phone), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name)'
   const [scheduled, dateOnly] = await Promise.all([
     supabase
       .from('jobs')
@@ -213,7 +213,7 @@ export async function getOperatorJob(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*), job_stops(*)')
+    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*), job_stops(*)')
     .eq('id', id)
     .single()
   if (error) throw error
