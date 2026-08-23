@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:core": "node --experimental-strip-types --test src/lib/*.test.ts tests/*.test.ts",
+    "test:core": "node --experimental-strip-types --test src/lib/*.test.ts src/lib/routing/*.test.ts tests/*.test.ts",
     "test": "npm run test:core"
   },
   "dependencies": {
