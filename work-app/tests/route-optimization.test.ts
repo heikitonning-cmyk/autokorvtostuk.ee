@@ -10,7 +10,8 @@ test('route optimization is proposal-only until user applies it', () => {
   assert.match(actions, /proposeRouteOptimization/)
   assert.match(actions, /applyRouteProposal/)
   assert.match(actions, /reorder_job_stops/)
-  assert.match(actions, /routing-not-configured/)
+  assert.match(actions, /optimizeWithFallback/)
+  assert.match(actions, /geocode-failed/)
   assert.match(actions, /nothing-to-optimize/)
   const proposalSection = actions.split('export async function applyRouteProposal')[0]
   assert.doesNotMatch(proposalSection, /reorder_job_stops/)
