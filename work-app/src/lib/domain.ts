@@ -62,14 +62,14 @@ export interface PriceBreakdown {
 
 export interface Job {
   id: string
-  customerId: string
+  customerId?: string | null
   vehicleId?: string | null
   operatorId?: string | null
-  startPlanned: string
+  startPlanned?: string | null
   endPlanned?: string | null
-  address: string
+  address?: string | null
   objectName?: string | null
-  workTypeId: string
+  workTypeId?: string | null
   description?: string | null
   accessNotes?: string | null
   status: JobStatus

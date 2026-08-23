@@ -19,14 +19,23 @@ export async function getManagerJobs() {
   const supabase = await createClient()
   const from = new Date(Date.now() - 35 * 86400000).toISOString()
   const to = new Date(Date.now() + 35 * 86400000).toISOString()
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*, customer:customers(id,name,phone,email), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)')
-    .gte('start_planned', from)
-    .lte('start_planned', to)
-    .order('start_planned', { ascending: true })
-  if (error) throw error
-  return data ?? []
+  const select = '*, customer:customers(id,name,phone,email), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
+  const [scheduled, unscheduled] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select(select)
+      .gte('start_planned', from)
+      .lte('start_planned', to)
+      .order('start_planned', { ascending: true }),
+    supabase
+      .from('jobs')
+      .select(select)
+      .is('start_planned', null)
+      .order('created_at', { ascending: false }),
+  ])
+  if (scheduled.error) throw scheduled.error
+  if (unscheduled.error) throw unscheduled.error
+  return [...(unscheduled.data ?? []), ...(scheduled.data ?? [])]
 }
 
 export async function getReferenceData() {

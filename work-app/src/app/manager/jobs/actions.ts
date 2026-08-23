@@ -6,24 +6,22 @@ import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { getPricingSettings } from '@/lib/queries'
 import { calculatePrice, createPriceSnapshot } from '@/lib/pricing'
-import { validateNewJob } from '@/lib/jobs'
+import { formatSaveError, optionalIsoDateTime } from '@/lib/jobs'
 
 const num = (value: FormDataEntryValue | null, fallback = 0) => {
-  const parsed = Number(value)
+  const text = String(value ?? '').trim()
+  if (!text) return fallback
+  const parsed = Number(text)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const optionalText = (value: FormDataEntryValue | null) => {
+  const text = String(value ?? '').trim()
+  return text || null
 }
 
 export async function createJob(formData: FormData) {
   const user = await requireUser('manager')
-  const input = {
-    customerId: String(formData.get('customerId') ?? ''),
-    startPlanned: String(formData.get('startPlanned') ?? ''),
-    address: String(formData.get('address') ?? '').trim(),
-    workTypeId: String(formData.get('workTypeId') ?? ''),
-    operatorId: String(formData.get('operatorId') ?? ''),
-  }
-  if (validateNewJob(input).length) redirect('/manager/jobs/new?error=required')
-
   const settings = await getPricingSettings()
   const priceInput = {
     liftHours: num(formData.get('estimatedHours'), 2),
@@ -35,16 +33,16 @@ export async function createJob(formData: FormData) {
   const price = calculatePrice(priceInput, settings)
   const supabase = await createClient()
   const { data, error } = await supabase.from('jobs').insert({
-    customer_id: input.customerId,
-    vehicle_id: String(formData.get('vehicleId') ?? '') || null,
-    operator_id: input.operatorId,
-    start_planned: new Date(input.startPlanned).toISOString(),
-    end_planned: formData.get('endPlanned') ? new Date(String(formData.get('endPlanned'))).toISOString() : null,
-    address: input.address,
-    object_name: String(formData.get('objectName') ?? '').trim() || null,
-    work_type_id: input.workTypeId,
-    description: String(formData.get('description') ?? '').trim() || null,
-    access_notes: String(formData.get('accessNotes') ?? '').trim() || null,
+    customer_id: optionalText(formData.get('customerId')),
+    vehicle_id: optionalText(formData.get('vehicleId')),
+    operator_id: optionalText(formData.get('operatorId')),
+    start_planned: optionalIsoDateTime(formData.get('startPlanned')),
+    end_planned: optionalIsoDateTime(formData.get('endPlanned')),
+    address: optionalText(formData.get('address')),
+    object_name: optionalText(formData.get('objectName')),
+    work_type_id: optionalText(formData.get('workTypeId')),
+    description: optionalText(formData.get('description')),
+    access_notes: optionalText(formData.get('accessNotes')),
     status: 'uus',
     estimated_total: price.total,
     estimated_hours: priceInput.liftHours,
@@ -52,12 +50,16 @@ export async function createJob(formData: FormData) {
     estimated_km: priceInput.km,
     estimated_helper_hours: priceInput.helperHours,
     manual_adjustment: priceInput.adjustment,
-    manual_adjustment_reason: String(formData.get('adjustmentReason') ?? '').trim() || null,
+    manual_adjustment_reason: optionalText(formData.get('adjustmentReason')),
     helper_used: priceInput.helperHours > 0,
     created_by: user.id,
   }).select('id').single()
-  if (error || !data) redirect('/manager/jobs/new?error=save')
+
+  if (error) redirect(`/manager/jobs/new?error=${encodeURIComponent(formatSaveError(error))}`)
+  if (!data) redirect(`/manager/jobs/new?error=${encodeURIComponent('Supabase ei tagastanud loodud töö ID-d.')}`)
+
   revalidatePath('/manager')
+  revalidatePath('/manager/calendar')
   redirect(`/manager/jobs/${data.id}`)
 }
 
