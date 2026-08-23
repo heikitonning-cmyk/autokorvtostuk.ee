@@ -4,7 +4,7 @@ import type { JobStatus } from '@/lib/domain'
 import { formatPlannedTime } from '@/lib/jobs'
 
 export function JobCard({ job, href }: { job: any; href: string }) {
-  const time = formatPlannedTime(job.start_planned)
+  const time = formatPlannedTime(job.start_planned, job.planned_time)
   return (
     <Link href={href} className="job-card">
       <div className="job-card-top"><strong>{time} · {job.object_name || job.customer?.name || 'Töö'}</strong><StatusBadge status={job.status as JobStatus} /></div>
