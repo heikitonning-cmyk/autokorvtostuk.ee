@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
+import { optionalIsoDateTime } from '@/lib/jobs'
 
 export type StopMutationResult = {
   ok: boolean
@@ -51,11 +53,7 @@ export async function addStopsAction(formData: FormData): Promise<StopMutationRe
   if (!jobId || !stops) return { ok: false, error: 'save' }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('add_job_stops', {
-    p_job_id: jobId,
-    p_stops: stops,
-    p_expected_revision: expectedRevision,
-  })
+  const { data, error } = await supabase.rpc('add_job_stops', { p_job_id: jobId, p_stops: stops, p_expected_revision: expectedRevision })
   if (error) return mutationError(error)
   refreshJob(jobId)
   return { ok: true, revision: Number(data) }
@@ -73,11 +71,7 @@ export async function reorderStopsAction(formData: FormData): Promise<StopMutati
   if (!jobId) return { ok: false, error: 'save' }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('reorder_job_stops', {
-    p_job_id: jobId,
-    p_stop_ids: stopIds,
-    p_expected_revision: expectedRevision,
-  })
+  const { data, error } = await supabase.rpc('reorder_job_stops', { p_job_id: jobId, p_stop_ids: stopIds, p_expected_revision: expectedRevision })
   if (error) return mutationError(error)
   refreshJob(jobId)
   return { ok: true, revision: Number(data) }
@@ -120,4 +114,29 @@ export async function updateStopDescriptionAction(formData: FormData): Promise<S
   if (error) return mutationError(error)
   refreshJob(jobId)
   return { ok: true, revision: Number(data) }
+}
+
+export async function correctStopAction(formData: FormData): Promise<void> {
+  await requireUser('manager')
+  const jobId = String(formData.get('jobId') ?? '')
+  const stopId = String(formData.get('stopId') ?? '')
+  const actualStart = optionalIsoDateTime(formData.get('actualStart'))
+  const actualEnd = optionalIsoDateTime(formData.get('actualEnd'))
+  const completionNote = String(formData.get('completionNote') ?? '').trim()
+
+  if (!jobId || !stopId || !completionNote) redirect(`/manager/jobs/${jobId}?error=correction-note`)
+  if (actualStart && actualEnd && new Date(actualEnd).getTime() < new Date(actualStart).getTime()) {
+    redirect(`/manager/jobs/${jobId}?error=correction-time`)
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('correct_job_stop', {
+    p_stop_id: stopId,
+    p_actual_start: actualStart,
+    p_actual_end: actualEnd,
+    p_completion_note: completionNote,
+  })
+  if (error) redirect(`/manager/jobs/${jobId}?error=correction-save`)
+  refreshJob(jobId)
+  redirect(`/manager/jobs/${jobId}?saved=stop-correction`)
 }
