@@ -16,3 +16,11 @@ test('active multi-stop job can append another stop and reorder pending work', (
   assert.match(manager, /route_revision/)
   assert.match(operator, /Marsruuti muudeti teises vaates/)
 })
+
+test('route endpoints can use Luige, saved customer sites or a manual address', () => {
+  const component = readFileSync(resolve(root, 'src/components/RouteEndpointFields.tsx'), 'utf8')
+  assert.match(component, /Luige/)
+  assert.match(component, /Muu aadress/)
+  assert.match(component, /routeStartSiteId/)
+  assert.match(component, /routeEndSiteId/)
+})
