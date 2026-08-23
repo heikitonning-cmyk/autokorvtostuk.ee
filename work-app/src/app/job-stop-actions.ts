@@ -102,3 +102,22 @@ export async function updateRouteEndpointsAction(formData: FormData): Promise<St
   refreshJob(jobId)
   return { ok: true, revision: Number(data) }
 }
+
+export async function updateStopDescriptionAction(formData: FormData): Promise<StopMutationResult> {
+  await requireUser()
+  const jobId = String(formData.get('jobId') ?? '')
+  const stopId = String(formData.get('stopId') ?? '')
+  const expectedRevision = integer(formData.get('expectedRevision'))
+  const description = String(formData.get('description') ?? '').trim()
+  if (!jobId || !stopId) return { ok: false, error: 'save' }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('update_job_stop_description', {
+    p_stop_id: stopId,
+    p_description: description || null,
+    p_expected_revision: expectedRevision,
+  })
+  if (error) return mutationError(error)
+  refreshJob(jobId)
+  return { ok: true, revision: Number(data) }
+}
