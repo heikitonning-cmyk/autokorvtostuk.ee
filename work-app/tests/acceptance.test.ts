@@ -49,6 +49,13 @@ test('manager and worker can open the same edit form for unfinished jobs', () =>
   assert.match(form, /Salvesta muudatused/)
 })
 
+test('job reference data includes customer sites', () => {
+  const queries = readFileSync(resolve(root, 'src/lib/queries.ts'), 'utf8')
+  assert.match(queries, /customer_sites/)
+  assert.match(queries, /sites:/)
+  assert.match(queries, /site:customer_sites/)
+})
+
 test('worker shared work plan exposes edit for any editable job', () => {
   const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
   assert.match(page, /href=\{`\/operator\/jobs\/\$\{job\.id\}\/edit`\}/)
