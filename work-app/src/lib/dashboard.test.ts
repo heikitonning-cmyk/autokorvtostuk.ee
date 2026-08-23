@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { managerSummary } from './dashboard.ts'
+import * as dashboardModule from './dashboard.ts'
+
+const { managerSummary } = dashboardModule
 
 const jobs = [
   { id: '1', status: 'uus', start_planned: '2026-08-22T08:00:00+03:00', estimated_total: 90, actual_total: null },
@@ -19,6 +21,29 @@ test('manager summary identifies attention items', () => {
 test('manager summary uses actual total when available', () => {
   const result = managerSummary([...jobs], new Date('2026-08-22T10:30:00+03:00'))
   assert.equal(result.todayRevenue, 90 + 135 + 160 + 210)
+})
+
+test('cancelled job is excluded from today count and revenue', () => {
+  const result = managerSummary([
+    ...jobs,
+    { id: 'cancelled', status: 'tuhistatud', start_planned: '2026-08-22T10:15:00+03:00', estimated_total: 999, actual_total: null } as any,
+  ], new Date('2026-08-22T10:30:00+03:00'))
+  assert.equal(result.todayJobs.some((job) => job.id === 'cancelled'), false)
+  assert.equal(result.todayJobs.length, jobs.length)
+  assert.equal(result.todayRevenue, 90 + 135 + 160 + 210)
+})
+
+test('cancelled job is excluded from rolling 7 and 30 day totals', () => {
+  assert.ok('jobsWithinDays' in dashboardModule, 'jobsWithinDays must exist')
+  const input = [
+    { id: 'active', status: 'kinnitatud', start_planned: '2026-08-24T10:00:00+03:00', estimated_total: 240, actual_total: null },
+    { id: 'cancelled', status: 'tuhistatud', start_planned: '2026-08-24T11:00:00+03:00', estimated_total: 999, actual_total: null },
+  ] as any[]
+  const now = new Date('2026-08-23T10:30:00+03:00')
+  const week = (dashboardModule as any).jobsWithinDays(input, 7, now)
+  const month = (dashboardModule as any).jobsWithinDays(input, 30, now)
+  assert.deepEqual(week.map((job: any) => job.id), ['active'])
+  assert.deepEqual(month.map((job: any) => job.id), ['active'])
 })
 
 test('unscheduled confirmed job is not treated as overdue', () => {
