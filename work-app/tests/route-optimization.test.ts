@@ -17,7 +17,7 @@ test('route optimization is proposal-only until user applies it', () => {
   assert.doesNotMatch(proposalSection, /reorder_job_stops/)
 })
 
-test('optimization UI is explicit and preserves manual control', () => {
+test('optimization UI is explicit, explains fallback quality and preserves manual control', () => {
   const panel = readFileSync(resolve(root, 'src/components/RouteOptimizationPanel.tsx'), 'utf8')
   const editor = readFileSync(resolve(root, 'src/components/JobStopsEditor.tsx'), 'utf8')
   const operator = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
@@ -28,6 +28,11 @@ test('optimization UI is explicit and preserves manual control', () => {
   assert.match(panel, /Jäta praegune järjekord/)
   assert.match(panel, /Praegune/)
   assert.match(panel, /Soovitus/)
+  assert.match(panel, /Liiklusinfoga/)
+  assert.match(panel, /Tavapärase sõiduaja järgi/)
+  assert.match(panel, /OpenStreetMap contributors/)
+  assert.match(panel, /geocode-failed/)
+  assert.match(panel, /Ühte või mitut aadressi ei õnnestunud kaardilt leida/)
   assert.doesNotMatch(panel, /useEffect[\s\S]*proposeRouteOptimization/)
   assert.match(editor, /RouteOptimizationPanel/)
   assert.match(operator, /RouteOptimizationPanel/)
