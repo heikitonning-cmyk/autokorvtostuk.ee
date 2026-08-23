@@ -7,7 +7,7 @@ export type RouteMetrics = {
 
 export type RouteProposal = RouteMetrics & {
   orderedStopIds: string[]
-  source: 'google-waypoint' | 'matrix-heuristic'
+  source: 'google-waypoint' | 'matrix-heuristic' | 'osrm-matrix'
 }
 
 export type RouteOptimizationResult = {
