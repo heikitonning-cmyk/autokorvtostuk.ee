@@ -4,7 +4,7 @@
 
 **Goal:** Add explicit fastest-route optimization for all stops or only remaining stops, while preserving manual ordering and using Waze for actual navigation.
 
-**Architecture:** Put Google routing behind a server-only adapter. For up to 25 movable stops, use Google Routes API `computeRoutes` with `optimizeWaypointOrder=true`; for larger jobs, build a batched duration matrix and run a deterministic fixed-start/fixed-end nearest-neighbor + 2-opt heuristic locally. Optimization only returns a proposal; saved order changes only after the user presses `Kasuta soovitust`.
+**Architecture:** Put Google routing behind a server-only adapter. For up to 25 movable stops, call Google Routes API twice: once to estimate the current saved order and once with `optimizeWaypointOrder=true` to obtain the proposed fastest order. For larger jobs, build a batched duration/distance matrix and run a deterministic fixed-start/fixed-end nearest-neighbor + 2-opt heuristic locally. Optimization only returns a proposal; saved order changes only after the user presses `Kasuta soovitust`.
 
 **Tech Stack:** Next.js 16.3.2, React 19.2.8, TypeScript 7.0.2, Supabase/PostgreSQL 17, Google Maps Platform Routes API, native `fetch`, Node test runner.
 
@@ -16,14 +16,14 @@
 
 - Work only on branch `app-v1-build`; do not modify `main`.
 - Optimization never runs automatically.
-- Primary objective is fastest driving order.
+- Primary objective is fastest driving order; use `TRAFFIC_AWARE`, not distance-first routing.
 - Proposal must not mutate the persisted order until user confirmation.
 - After applying a proposal, manager/operator may still reorder manually.
 - `Optimeeri ülejäänud marsruut` may move only `pending` stops; `done`, `skipped`, and `in_progress` are fixed.
 - Waze remains navigation; Google is only the server-side route estimate/optimization provider.
 - No application-level stop-count limit.
 - Provider failure or quota failure must leave the current saved order unchanged.
-- API key must remain server-only.
+- API key must remain server-only and must never use a `NEXT_PUBLIC_` prefix.
 - Every implementation task follows TDD: test first, observe RED, implement minimally, observe GREEN, then commit.
 
 ---
@@ -31,18 +31,18 @@
 ## File Structure
 
 ### Routing domain
-- Create `work-app/src/lib/routing/types.ts` — provider-independent request/result types.
-- Create `work-app/src/lib/routing/optimizer.ts` — deterministic local matrix optimizer and route proposal builder.
+- Create `work-app/src/lib/routing/types.ts` — provider-independent point, metrics, proposal and result types.
+- Create `work-app/src/lib/routing/optimizer.ts` — deterministic local matrix optimizer and route-metric helpers.
 - Create `work-app/src/lib/routing/optimizer.test.ts` — pure algorithm tests.
-- Create `work-app/src/lib/routing/google-routes.ts` — server-only Google Routes client, direct optimization, batched matrix retrieval and throttling.
-- Create `work-app/src/lib/routing/google-routes.test.ts` — request/response mapping tests with injected fetch.
+- Create `work-app/src/lib/routing/google-routes.ts` — server-only Google Routes client, current-route estimate, direct optimization, batched matrix retrieval and throttling.
+- Create `work-app/src/lib/routing/google-routes.test.ts` — request/response mapping tests with injected fetch/sleep.
 
 ### Actions/API
-- Create `work-app/src/app/route-optimization-actions.ts` — load job/stops, determine movable subset and effective endpoints, request proposal, apply accepted proposal through existing guarded reorder RPC.
+- Create `work-app/src/app/route-optimization-actions.ts` — load job/stops, determine movable subset and effective endpoints, request comparison, apply accepted proposal through existing guarded reorder RPC.
 - Modify `work-app/src/lib/queries.ts` — base-location and route data helpers as needed.
 
 ### UI
-- Create `work-app/src/components/RouteOptimizationPanel.tsx` — explicit optimize button, proposal comparison, accept/cancel.
+- Create `work-app/src/components/RouteOptimizationPanel.tsx` — explicit optimize button, current-vs-proposed comparison, accept/cancel.
 - Modify `work-app/src/components/JobStopsEditor.tsx` — planning optimization panel.
 - Modify `work-app/src/app/operator/jobs/[id]/page.tsx` — remaining-route optimize button during active work.
 - Modify `work-app/src/app/manager/jobs/[id]/page.tsx` — planning/remaining optimization access.
@@ -65,14 +65,16 @@
 
 ```ts
 export type RoutePoint = { id: string; address: string }
-export type RouteProposal = {
+export type RouteMetrics = { durationSeconds: number; distanceMeters: number | null }
+export type RouteProposal = RouteMetrics & {
   orderedStopIds: string[]
-  durationSeconds: number
-  distanceMeters: number | null
   source: 'google-waypoint' | 'matrix-heuristic'
 }
+export type RouteOptimizationResult = { current: RouteMetrics; proposal: RouteProposal }
 export type DurationMatrix = Record<string, Record<string, number>>
+export type DistanceMatrix = Record<string, Record<string, number>>
 export function optimizeFixedEndpoints(startId: string, stopIds: string[], endId: string, matrix: DurationMatrix): string[]
+export function pathMetrics(startId: string, stopIds: string[], endId: string, duration: DurationMatrix, distance: DistanceMatrix): RouteMetrics
 ```
 
 - [ ] **Step 1: Write failing optimizer tests**
@@ -80,7 +82,7 @@ export function optimizeFixedEndpoints(startId: string, stopIds: string[], endId
 ```ts
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { optimizeFixedEndpoints } from './optimizer.ts'
+import { optimizeFixedEndpoints, pathMetrics } from './optimizer.ts'
 
 test('optimizer keeps fixed endpoints and finds a faster stop order', () => {
   const matrix = {
@@ -99,6 +101,12 @@ test('optimizer preserves duplicate stop occurrences by unique stop ids', () => 
   const order = optimizeFixedEndpoints('S',['A1','A2'],'E',matrix)
   assert.equal(order.length, 2)
   assert.deepEqual(new Set(order), new Set(['A1','A2']))
+})
+
+test('path metrics include start, every stop, and fixed end', () => {
+  const duration = { S:{A:3}, A:{B:4}, B:{E:5} }
+  const distance = { S:{A:300}, A:{B:400}, B:{E:500} }
+  assert.deepEqual(pathMetrics('S',['A','B'],'E',duration,distance), { durationSeconds:12, distanceMeters:1200 })
 })
 ```
 
@@ -133,9 +141,9 @@ function nearestNeighbor(startId: string, stopIds: string[], matrix: DurationMat
 }
 ```
 
-- [ ] **Step 4: Add fixed-endpoint 2-opt improvement**
+- [ ] **Step 4: Add fixed-endpoint 2-opt improvement and path metrics**
 
-Compute path cost as `start -> stops -> end`; repeatedly reverse stop slices only when total duration strictly decreases. Stop when a full pass yields no improvement. This is deterministic and does not move endpoints.
+Compute path cost as `start -> stops -> end`; repeatedly reverse stop slices only when total duration strictly decreases. Stop when a full pass yields no improvement. `pathMetrics` sums the exact directed duration/distance legs for a supplied order.
 
 - [ ] **Step 5: Run tests and verify GREEN**
 
@@ -156,7 +164,7 @@ git commit -m "feat: add route optimization domain"
 
 ---
 
-### Task 2: Add the direct Google waypoint optimizer for 25 or fewer stops
+### Task 2: Add current-route estimate and direct Google waypoint optimization for 25 or fewer stops
 
 **Files:**
 - Create: `work-app/src/lib/routing/google-routes.ts`
@@ -167,6 +175,14 @@ git commit -m "feat: add route optimization domain"
 
 ```ts
 export type FetchLike = typeof fetch
+export async function estimateOrderedRouteGoogle(
+  start: RoutePoint,
+  stops: RoutePoint[],
+  end: RoutePoint,
+  apiKey: string,
+  fetchImpl?: FetchLike,
+): Promise<RouteMetrics>
+
 export async function optimizeWaypointsGoogle(
   start: RoutePoint,
   stops: RoutePoint[],
@@ -174,27 +190,43 @@ export async function optimizeWaypointsGoogle(
   apiKey: string,
   fetchImpl?: FetchLike,
 ): Promise<RouteProposal>
+
+export async function optimizeSmallRouteGoogle(
+  start: RoutePoint,
+  stops: RoutePoint[],
+  end: RoutePoint,
+  apiKey: string,
+  fetchImpl?: FetchLike,
+): Promise<RouteOptimizationResult>
 ```
 
 - [ ] **Step 1: Write failing request-mapping test**
 
-Inject a fake fetch and assert the request body/header:
+Inject a fake fetch and assert both current and optimized requests. The optimized request must set `optimizeWaypointOrder:true`; both use traffic-aware driving and Estonia region:
 
 ```ts
-test('Google direct optimizer requests explicit waypoint optimization', async () => {
-  let seen: any
+test('Google small-route optimizer compares current and proposed order', async () => {
+  const bodies: any[] = []
   const fakeFetch: typeof fetch = async (_url, init) => {
-    seen = { init, body: JSON.parse(String(init?.body)) }
-    return new Response(JSON.stringify({ routes:[{ optimizedIntermediateWaypointIndex:[1,0], duration:'100s', distanceMeters:1200 }] }), { status:200 })
+    const body = JSON.parse(String(init?.body)); bodies.push(body)
+    const optimized = body.optimizeWaypointOrder === true
+    return new Response(JSON.stringify({ routes:[{
+      optimizedIntermediateWaypointIndex: optimized ? [1,0] : undefined,
+      duration: optimized ? '90s' : '120s', distanceMeters: optimized ? 1000 : 1200,
+    }] }), { status:200 })
   }
-  const result = await optimizeWaypointsGoogle(
-    {id:'S',address:'Luige, Harju maakond, Estonia'},
+  const result = await optimizeSmallRouteGoogle(
+    {id:'S',address:'Luige, Estonia'},
     [{id:'A',address:'A'},{id:'B',address:'B'}],
-    {id:'E',address:'Luige, Harju maakond, Estonia'},
+    {id:'E',address:'Luige, Estonia'},
     'secret', fakeFetch,
   )
-  assert.equal(seen.body.optimizeWaypointOrder, true)
-  assert.deepEqual(result.orderedStopIds, ['B','A'])
+  assert.equal(bodies.length, 2)
+  assert.equal(bodies[0].optimizeWaypointOrder, false)
+  assert.equal(bodies[1].optimizeWaypointOrder, true)
+  assert.equal(bodies[1].routingPreference, 'TRAFFIC_AWARE')
+  assert.deepEqual(result.proposal.orderedStopIds, ['B','A'])
+  assert.equal(result.current.durationSeconds, 120)
 })
 ```
 
@@ -205,7 +237,7 @@ cd work-app
 node --experimental-strip-types --test src/lib/routing/google-routes.test.ts
 ```
 
-- [ ] **Step 3: Implement server-side Google request**
+- [ ] **Step 3: Implement shared `computeRoutes` request**
 
 POST to `https://routes.googleapis.com/directions/v2:computeRoutes` with:
 
@@ -215,14 +247,22 @@ const body = {
   destination: { address: end.address },
   intermediates: stops.map((s) => ({ address: s.address })),
   travelMode: 'DRIVE',
-  optimizeWaypointOrder: true,
+  routingPreference: 'TRAFFIC_AWARE',
+  regionCode: 'ee',
+  optimizeWaypointOrder,
 }
-const fieldMask = 'routes.optimizedIntermediateWaypointIndex,routes.duration,routes.distanceMeters'
+const fieldMask = optimizeWaypointOrder
+  ? 'routes.optimizedIntermediateWaypointIndex,routes.duration,routes.distanceMeters'
+  : 'routes.duration,routes.distanceMeters'
 ```
 
-Use `X-Goog-Api-Key` and `X-Goog-FieldMask`; never return the key to client code. Reject calls with `stops.length > 25` so the caller chooses the matrix path.
+Use `X-Goog-Api-Key` and `X-Goog-FieldMask`; never return the key to client code. Reject direct calls with `stops.length > 25` so the caller chooses the matrix path.
 
-- [ ] **Step 4: Add configuration placeholder**
+- [ ] **Step 4: Implement current/proposed comparison**
+
+`optimizeSmallRouteGoogle` calls `estimateOrderedRouteGoogle` first and `optimizeWaypointsGoogle` second, returning `{ current, proposal }`. Parse Google durations such as `"120s"` into integer seconds.
+
+- [ ] **Step 5: Add configuration placeholder**
 
 Append to `.env.example`:
 
@@ -230,7 +270,7 @@ Append to `.env.example`:
 GOOGLE_MAPS_ROUTES_API_KEY=
 ```
 
-- [ ] **Step 5: Run tests/typecheck and verify GREEN**
+- [ ] **Step 6: Run tests/typecheck and verify GREEN**
 
 ```bash
 cd work-app
@@ -238,7 +278,7 @@ npm test
 npm run typecheck
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add work-app/src/lib/routing/google-routes.ts work-app/src/lib/routing/google-routes.test.ts work-app/.env.example
@@ -258,11 +298,13 @@ git commit -m "feat: add Google waypoint optimizer"
 **Interfaces:**
 
 ```ts
-export async function buildGoogleDurationMatrix(
+export type Sleep = (ms: number) => Promise<void>
+export async function buildGoogleRouteMatrix(
   points: RoutePoint[],
   apiKey: string,
   fetchImpl?: FetchLike,
-): Promise<{ duration: DurationMatrix; distance: Record<string, Record<string, number>> }>
+  sleepImpl?: Sleep,
+): Promise<{ duration: DurationMatrix; distance: DistanceMatrix }>
 
 export async function optimizeLargeRouteGoogle(
   start: RoutePoint,
@@ -270,7 +312,8 @@ export async function optimizeLargeRouteGoogle(
   end: RoutePoint,
   apiKey: string,
   fetchImpl?: FetchLike,
-): Promise<RouteProposal>
+  sleepImpl?: Sleep,
+): Promise<RouteOptimizationResult>
 ```
 
 - [ ] **Step 1: Write failing batching test**
@@ -290,7 +333,7 @@ cd work-app
 node --experimental-strip-types --test src/lib/routing/google-routes.test.ts
 ```
 
-- [ ] **Step 3: Implement 25×25 chunking**
+- [ ] **Step 3: Implement 25×25 chunking with the exact Google matrix shape**
 
 Build chunks with:
 
@@ -298,20 +341,39 @@ Build chunks with:
 const chunk = <T,>(items: T[], size: number) => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i*size, (i+1)*size))
 ```
 
-POST each origin/destination chunk to `https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix` using `DRIVE`. Map each matrix element back to stable point IDs by origin/destination indexes.
+For each chunk pair POST to `https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix`:
+
+```ts
+const body = {
+  origins: originChunk.map((p) => ({ waypoint: { address: p.address } })),
+  destinations: destinationChunk.map((p) => ({ waypoint: { address: p.address } })),
+  travelMode: 'DRIVE',
+  routingPreference: 'TRAFFIC_AWARE',
+  regionCode: 'ee',
+}
+const fieldMask = 'originIndex,destinationIndex,duration,distanceMeters,status,condition'
+```
+
+Map each returned element back to stable point IDs using the chunk-local `originIndex`/`destinationIndex`. Treat any element whose `condition !== 'ROUTE_EXISTS'` as a provider failure for the whole proposal; do not invent a zero/large distance.
 
 - [ ] **Step 4: Throttle matrix requests by element budget**
 
-Track elements submitted inside a rolling one-minute window. Before a request would push the local budget over 2900 elements, await enough time to enter the next window. Keep this helper internal and inject `sleep` in tests so tests do not actually wait.
+Track elements submitted inside a rolling one-minute window. Before a request would push the local budget over 2900 elements, await enough time to enter the next window. Inject sleep in tests so tests do not actually wait:
 
 ```ts
-export type Sleep = (ms: number) => Promise<void>
 const defaultSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 ```
 
-- [ ] **Step 5: Build large-route proposal**
+- [ ] **Step 5: Build current and proposed metrics from the same matrix**
 
-Use the duration matrix with `optimizeFixedEndpoints`, then sum selected directed leg durations and distances for the returned order. Set `source:'matrix-heuristic'`.
+Use `pathMetrics(start.id, stops.map(s => s.id), end.id, ...)` for `current`. Use `optimizeFixedEndpoints` to obtain the proposed order, then call `pathMetrics` again. Return:
+
+```ts
+return {
+  current,
+  proposal: { ...optimizedMetrics, orderedStopIds, source: 'matrix-heuristic' },
+}
+```
 
 - [ ] **Step 6: Run tests/typecheck and verify GREEN**
 
@@ -343,7 +405,7 @@ git commit -m "feat: optimize large multi-stop routes"
 export async function proposeRouteOptimization(input: {
   jobId: string
   mode: 'all' | 'remaining'
-}): Promise<{ ok: true; proposal: RouteProposal; current: { durationSeconds:number; distanceMeters:number|null } } | { ok:false; error:string }>
+}): Promise<{ ok: true; result: RouteOptimizationResult; stopNames: Record<string,string> } | { ok:false; error:string }>
 
 export async function applyRouteProposal(formData: FormData): Promise<void>
 ```
@@ -356,7 +418,7 @@ test('route optimization is proposal-only until user applies it', () => {
   assert.match(actions, /proposeRouteOptimization/)
   assert.match(actions, /applyRouteProposal/)
   assert.match(actions, /reorder_job_stops/)
-  assert.doesNotMatch(actions, /proposeRouteOptimization[\s\S]*reorder_job_stops[\s\S]*return proposal/)
+  assert.doesNotMatch(actions, /proposeRouteOptimization[\s\S]*reorder_job_stops[\s\S]*return/)
 })
 ```
 
@@ -376,13 +438,15 @@ const startAddress = job.route_start_address || baseLocation.address
 const endAddress = job.route_end_address || baseLocation.address
 ```
 
-For `all`, movable stops are every `pending` stop only when no work has started; otherwise reject with `use-remaining`. For `remaining`, choose effective start as active stop address, else most recently terminal stop address, else route start. Movable set is only `pending` stops.
+For `all`, movable stops are every `pending` stop only when no stop has `actual_start`; otherwise return `use-remaining`. For `remaining`, choose effective start as the active `in_progress` stop address, else the highest-sequence terminal stop that has actually been reached, else route start. Movable set is only `pending` stops.
+
+Reject optimization when start/end address is blank or fewer than two pending stops remain; return stable errors `route-endpoint-missing` or `nothing-to-optimize`.
 
 - [ ] **Step 4: Choose routing path by stop count**
 
 ```ts
-const proposal = movable.length <= 25
-  ? await optimizeWaypointsGoogle(start, movable, end, apiKey)
+const result = movable.length <= 25
+  ? await optimizeSmallRouteGoogle(start, movable, end, apiKey)
   : await optimizeLargeRouteGoogle(start, movable, end, apiKey)
 ```
 
@@ -390,7 +454,7 @@ If `GOOGLE_MAPS_ROUTES_API_KEY` is missing, return `{ok:false,error:'routing-not
 
 - [ ] **Step 5: Implement accepted proposal application**
 
-`applyRouteProposal` receives ordered stop IDs plus `expectedRevision`; validate all IDs are still pending stops in that job and then call the existing guarded `reorder_job_stops` RPC. A stale revision returns `stale-route`.
+`applyRouteProposal` receives ordered stop IDs plus `expectedRevision`; validate all IDs are still pending stops in that job and then call the existing guarded `reorder_job_stops` RPC. A stale revision returns `stale-route`. The action never recomputes/replaces an already shown proposal silently.
 
 - [ ] **Step 6: Run tests/typecheck/build and verify GREEN**
 
@@ -450,9 +514,9 @@ npm test
 On explicit click, display current vs proposed route metrics:
 
 ```tsx
-<p>Praegune: {formatKm(current.distanceMeters)} · {formatDuration(current.durationSeconds)}</p>
-<p>Soovitus: {formatKm(proposal.distanceMeters)} · {formatDuration(proposal.durationSeconds)}</p>
-<p>{formatDelta(current.durationSeconds, proposal.durationSeconds)}</p>
+<p>Praegune: {formatKm(result.current.distanceMeters)} · {formatDuration(result.current.durationSeconds)}</p>
+<p>Soovitus: {formatKm(result.proposal.distanceMeters)} · {formatDuration(result.proposal.durationSeconds)}</p>
+<p>{formatDelta(result.current.durationSeconds, result.proposal.durationSeconds)}</p>
 ```
 
 Also render the proposed stop-name sequence before confirmation.
@@ -463,12 +527,14 @@ Also render the proposed stop-name sequence before confirmation.
 
 - [ ] **Step 5: Integrate active-work mode**
 
-Manager/operator job details render `mode="remaining"` whenever pending stops remain and the job has progressed. Applying the proposal only changes pending stop order; done/skipped/in-progress rows remain fixed.
+Manager/operator job details render `mode="remaining"` whenever at least two pending stops remain and the job has progressed. Applying the proposal only changes pending stop order; done/skipped/in-progress rows remain fixed.
 
-- [ ] **Step 6: Add provider-error copy**
+- [ ] **Step 6: Add provider/error copy**
 
 Use stable messages:
 - `routing-not-configured` → `Marsruudi optimeerimine pole veel seadistatud.`
+- `route-endpoint-missing` → `Marsruudi algus- või lõpp-punkt vajab aadressi.`
+- `nothing-to-optimize` → `Optimeerimiseks on vaja vähemalt kahte tegemata peatust.`
 - `routing-failed` → `Marsruuti ei õnnestunud arvutada. Praegune järjekord jäi muutmata.`
 - `stale-route` → `Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.`
 
@@ -524,7 +590,7 @@ Set `GOOGLE_MAPS_ROUTES_API_KEY` in Vercel project environment and trigger/verif
 
 - [ ] **Step 4: Smoke test a five-stop Neste route**
 
-Use five real saved Neste station records. Verify `Optimeeri marsruut` does nothing before click, returns a proposal after click, `Jäta praegune järjekord` leaves DB order unchanged, `Kasuta soovitust` changes only pending order, and manual drag can change it again.
+Use five real saved Neste station records. Verify `Optimeeri marsruut` does nothing before click, returns both current and proposed time/km after click, `Jäta praegune järjekord` leaves DB order unchanged, `Kasuta soovitust` changes only pending order, and manual drag can change it again.
 
 - [ ] **Step 5: Smoke test active remaining-route behavior**
 
