@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getJobDetail } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -7,15 +8,19 @@ import { formatPlannedSchedule } from '@/lib/jobs'
 
 const dt = (v: string | null) => v ? new Intl.DateTimeFormat('et-EE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Tallinn' }).format(new Date(v)) : '—'
 const money = (v: number | null) => v == null ? '—' : `${Number(v).toFixed(2)} €`
+const locked = new Set(['tehtud', 'vajab_jareltegevust', 'tuhistatud'])
 
-export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
+  const query = await searchParams
   let job: any
   try { job = await getJobDetail(id) } catch { notFound() }
   const planned = formatPlannedSchedule(job.start_planned, job.planned_date, job.planned_time, job.planned_end_time)
+  const editable = !locked.has(job.status)
 
   return <div className="page narrow stack-lg">
-    <div className="page-title-row"><div><p className="eyebrow">Töö detail</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{job.address || 'Aadress määramata'}</p></div><StatusBadge status={job.status as JobStatus} /></div>
+    <div className="page-title-row"><div><p className="eyebrow">Töö detail</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{job.address || 'Aadress määramata'}</p></div><div className="stack"><StatusBadge status={job.status as JobStatus} />{editable && <Link className="button secondary" href={`/manager/jobs/${job.id}/edit`}>Muuda</Link>}</div></div>
+    {query.saved && <div className="alert success">Muudatused salvestatud.</div>}
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
     <section className="detail-card"><h2>Aeg ja inimesed</h2><dl><div><dt>Plaan</dt><dd>{planned}</dd></div><div><dt>Klient</dt><dd>{job.customer?.name || 'Määramata'}</dd></div><div><dt>Kontakt</dt><dd>{job.customer?.phone || job.customer?.email || '—'}</dd></div><div><dt>Operaator</dt><dd>{job.operator?.name || 'Määramata'}</dd></div><div><dt>Tööliik</dt><dd>{job.work_type?.name || 'Määramata'}</dd></div></dl></section>
     <section className="detail-card"><h2>Töö</h2><p>{job.description || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Ligipääs</strong><p>{job.access_notes}</p></div>}</section>
