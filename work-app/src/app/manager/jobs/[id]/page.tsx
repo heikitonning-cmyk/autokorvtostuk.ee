@@ -3,6 +3,7 @@ import { getJobDetail } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
 import { cancelJob, confirmJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
+import { formatPlannedSchedule } from '@/lib/jobs'
 
 const dt = (v: string | null) => v ? new Intl.DateTimeFormat('et-EE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Tallinn' }).format(new Date(v)) : '—'
 const money = (v: number | null) => v == null ? '—' : `${Number(v).toFixed(2)} €`
@@ -11,9 +12,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const { id } = await params
   let job: any
   try { job = await getJobDetail(id) } catch { notFound() }
-  const planned = job.start_planned
-    ? `${dt(job.start_planned)}${job.end_planned ? ` – ${dt(job.end_planned)}` : ''}`
-    : 'Aeg määramata'
+  const planned = formatPlannedSchedule(job.start_planned, job.planned_date, job.planned_time, job.planned_end_time)
 
   return <div className="page narrow stack-lg">
     <div className="page-title-row"><div><p className="eyebrow">Töö detail</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{job.address || 'Aadress määramata'}</p></div><StatusBadge status={job.status as JobStatus} /></div>
