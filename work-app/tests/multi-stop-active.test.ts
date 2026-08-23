@@ -24,3 +24,10 @@ test('route endpoints can use Luige, saved customer sites or a manual address', 
   assert.match(component, /routeStartSiteId/)
   assert.match(component, /routeEndSiteId/)
 })
+
+test('pending stop has an optional stop-specific work description editor', () => {
+  const order = readFileSync(resolve(root, 'src/components/StopOrderEditor.tsx'), 'utf8')
+  const actions = readFileSync(resolve(root, 'src/app/job-stop-actions.ts'), 'utf8')
+  assert.match(order, /Peatuse töö/)
+  assert.match(actions, /update_job_stop_description/)
+})
