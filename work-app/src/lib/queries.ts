@@ -9,12 +9,43 @@ export const defaultPricing: PriceSettings = {
   helperHourlyRate: 35,
 }
 
+export const defaultBaseLocation = {
+  label: 'Luige',
+  address: 'Luige, Estonia',
+}
+
 const siteSelect = 'id,customer_id,name,address,city,county,requires_lift,service_notes,source'
+
+async function signJobPhotos(supabase: any, photos: any[]) {
+  if (!photos?.length) return photos ?? []
+  return Promise.all(photos.map(async (photo: any) => {
+    const { data: signed } = await supabase.storage.from('job-photos').createSignedUrl(photo.storage_path, 3600)
+    return { ...photo, signed_url: signed?.signedUrl ?? null }
+  }))
+}
+
+function attachStopPhotos(data: any) {
+  if (!data?.job_stops) return data
+  data.job_stops = [...data.job_stops]
+    .sort((a: any, b: any) => Number(a.sequence_no) - Number(b.sequence_no))
+    .map((stop: any) => ({
+      ...stop,
+      job_photos: (data.job_photos ?? []).filter((photo: any) => photo.job_stop_id === stop.id),
+    }))
+  return data
+}
 
 export async function getPricingSettings(): Promise<PriceSettings> {
   const supabase = await createClient()
   const { data } = await supabase.from('settings').select('value').eq('key', 'pricing').maybeSingle()
   return { ...defaultPricing, ...(data?.value as Partial<PriceSettings> | null ?? {}) }
+}
+
+export async function getBaseLocation() {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'base_location').maybeSingle()
+  if (error) throw error
+  return { ...defaultBaseLocation, ...((data?.value as Partial<typeof defaultBaseLocation> | null) ?? {}) }
 }
 
 export async function getManagerJobs() {
@@ -90,21 +121,27 @@ export async function getEditableReferenceData() {
   }
 }
 
+export async function getJobStops(jobId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('job_stops')
+    .select('*')
+    .eq('job_id', jobId)
+    .order('sequence_no', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getJobDetail(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(*), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_events(*)')
+    .select('*, customer:customers(*), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(*), operator:users!jobs_operator_id_fkey(id,name,phone,email), vehicle:vehicles(*), job_photos(*), job_stops(*), job_events(*)')
     .eq('id', id)
     .single()
   if (error) throw error
-  if (data?.job_photos?.length) {
-    data.job_photos = await Promise.all(data.job_photos.map(async (photo: any) => {
-      const { data: signed } = await supabase.storage.from('job-photos').createSignedUrl(photo.storage_path, 3600)
-      return { ...photo, signed_url: signed?.signedUrl ?? null }
-    }))
-  }
-  return data
+  if (data) data.job_photos = await signJobPhotos(supabase, data.job_photos ?? [])
+  return attachStopPhotos(data)
 }
 
 export async function getWorkerJobs(userId: string) {
@@ -176,11 +213,12 @@ export async function getOperatorJob(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*)')
+    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*), job_stops(*)')
     .eq('id', id)
     .single()
   if (error) throw error
-  return data
+  if (data) data.job_photos = await signJobPhotos(supabase, data.job_photos ?? [])
+  return attachStopPhotos(data)
 }
 
 export async function getCustomers() {
