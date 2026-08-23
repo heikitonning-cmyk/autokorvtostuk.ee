@@ -65,6 +65,9 @@ export interface Job {
   customerId?: string | null
   vehicleId?: string | null
   operatorId?: string | null
+  plannedDate?: string | null
+  plannedTime?: string | null
+  plannedEndTime?: string | null
   startPlanned?: string | null
   endPlanned?: string | null
   address?: string | null
