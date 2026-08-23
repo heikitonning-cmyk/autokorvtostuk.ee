@@ -62,6 +62,14 @@ test('customer sites migration adds reusable sites and 59 Neste stations', () =>
   assert.match(sql, /on conflict \(customer_id, external_code\)/i)
 })
 
+test('customer site migration extends guarded job editing without changing ownership', () => {
+  const sql = readFileSync(customerSitesPath, 'utf8')
+  assert.match(sql, /p_site_id\s+uuid/i)
+  assert.match(sql, /site_id\s*=\s*p_site_id/i)
+  assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
+  assert.doesNotMatch(sql, /operator_id\s*=\s*p_/i)
+})
+
 test('worker migration defines atomic claim and guarded release functions', () => {
   const sql = readFileSync(workerPath, 'utf8')
   assert.match(sql, /create or replace function public\.claim_job/i)
