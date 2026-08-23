@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function PhotoUploader({ jobId }: { jobId: string }) {
+export function PhotoUploader({ jobId, jobStopId }: { jobId: string; jobStopId?: string }) {
   const input = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<'idle' | 'uploading' | 'ok' | 'error'>('idle')
   const router = useRouter()
@@ -14,6 +14,7 @@ export function PhotoUploader({ jobId }: { jobId: string }) {
     const body = new FormData()
     body.set('file', file)
     body.set('category', 'during')
+    if (jobStopId) body.set('jobStopId', jobStopId)
     try {
       const res = await fetch(`/api/jobs/${jobId}/photos`, { method: 'POST', body })
       if (!res.ok) throw new Error('upload failed')
