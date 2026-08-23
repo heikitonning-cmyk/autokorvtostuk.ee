@@ -1,3 +1,4 @@
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { isCoordinates, type Coordinates } from './coordinates.ts'
 
 type DurableObjectStubLike = {
@@ -27,4 +28,16 @@ export async function geocodeThroughThrottle(
   const payload = await response.json()
   if (!isCoordinates(payload)) throw new Error('geocode-provider-failed')
   return payload
+}
+
+export async function geocodeThroughConfiguredThrottle(address: string): Promise<Coordinates | null> {
+  let namespace: DurableObjectNamespaceLike | undefined
+  try {
+    const { env } = getCloudflareContext()
+    namespace = (env as unknown as { GEOCODE_THROTTLE?: DurableObjectNamespaceLike }).GEOCODE_THROTTLE
+  } catch {
+    throw new Error('geocode-provider-failed')
+  }
+  if (!namespace) throw new Error('geocode-provider-failed')
+  return geocodeThroughThrottle(namespace, address)
 }
