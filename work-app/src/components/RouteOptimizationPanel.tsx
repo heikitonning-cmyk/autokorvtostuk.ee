@@ -16,6 +16,7 @@ const errorCopy: Record<string, string> = {
   'route-endpoint-missing': 'Marsruudi algus- või lõpp-punkt vajab aadressi.',
   'nothing-to-optimize': 'Optimeerimiseks on vaja vähemalt kahte tegemata peatust.',
   'routing-failed': 'Marsruuti ei õnnestunud arvutada. Praegune järjekord jäi muutmata.',
+  'geocode-failed': 'Ühte või mitut aadressi ei õnnestunud kaardilt leida. Kontrolli aadresse ja proovi uuesti.',
   'stale-route': 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.',
   'use-remaining': 'Töö on juba alanud. Optimeeri ainult ülejäänud marsruut.',
 }
@@ -30,6 +31,10 @@ function formatDuration(seconds: number) {
 function formatKm(meters: number | null) {
   if (meters == null) return 'km teadmata'
   return `${(meters / 1000).toFixed(meters >= 10_000 ? 0 : 1)} km`
+}
+
+function sourceLabel(source: RouteOptimizationResult['proposal']['source']) {
+  return source === 'osrm-matrix' ? 'Tavapärase sõiduaja järgi' : 'Liiklusinfoga'
 }
 
 export function RouteOptimizationPanel({
@@ -84,6 +89,7 @@ export function RouteOptimizationPanel({
   const currentDistance = proposal?.result.current.distanceMeters ?? null
   const proposedDistance = proposal?.result.proposal.distanceMeters ?? null
   const savedMeters = currentDistance != null && proposedDistance != null ? currentDistance - proposedDistance : null
+  const usesOsrm = proposal?.result.proposal.source === 'osrm-matrix'
 
   return <section className="detail-card stack">
     <div>
@@ -99,6 +105,7 @@ export function RouteOptimizationPanel({
     {error && <div className="alert danger">{error}</div>}
 
     {proposal && <div className="stack">
+      <p className="muted"><strong>{sourceLabel(proposal.result.proposal.source)}</strong>{usesOsrm ? ' · liiklusummikuid arvutus eraldi ei arvesta.' : ' · arvestab Google’i hetke liiklusmudelit.'}</p>
       <div className="form-grid two">
         <div className="note-box"><strong>Praegune</strong><p>{formatKm(proposal.result.current.distanceMeters)} · {formatDuration(proposal.result.current.durationSeconds)}</p></div>
         <div className="note-box"><strong>Soovitus</strong><p>{formatKm(proposal.result.proposal.distanceMeters)} · {formatDuration(proposal.result.proposal.durationSeconds)}</p></div>
@@ -108,6 +115,7 @@ export function RouteOptimizationPanel({
         <strong>Soovitatud järjekord</strong>
         {proposal.result.proposal.orderedStopIds.map((stopId, index) => <div key={stopId}>{index + 1}. {proposal.stopNames[stopId] || stopId}</div>)}
       </div>
+      {usesOsrm && <p className="muted">Kaardiandmed © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>.</p>}
       <div className="action-grid two">
         <button type="button" className="button primary wide" disabled={isPending} onClick={apply}>Kasuta soovitust</button>
         <button type="button" className="button secondary wide" disabled={isPending} onClick={() => { setProposal(null); setError(null) }}>Jäta praegune järjekord</button>
