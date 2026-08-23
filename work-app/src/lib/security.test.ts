@@ -5,30 +5,63 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const migrationPath = resolve(here, '../../supabase/migrations/20260822190000_init.sql')
+const initPath = resolve(here, '../../supabase/migrations/20260822190000_init.sql')
+const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_claims_and_invites.sql')
 
 test('schema defines all core tables and enables RLS', () => {
-  const sql = readFileSync(migrationPath, 'utf8')
+  const sql = readFileSync(initPath, 'utf8')
   for (const table of ['users', 'customers', 'vehicles', 'work_types', 'settings', 'jobs', 'job_photos', 'job_events']) {
     assert.match(sql, new RegExp(`create table(?: if not exists)? public\\.${table}`, 'i'))
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, 'i'))
   }
 })
 
-test('operator job policy is constrained to auth.uid assignment', () => {
-  const sql = readFileSync(migrationPath, 'utf8')
-  assert.match(sql, /operator can read assigned jobs/i)
+test('worker migration exposes only free or own jobs', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /operator can read free or own jobs/i)
+  assert.match(sql, /operator_id\s+is\s+null/i)
+  assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
+  assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
+})
+
+test('worker migration defines atomic claim and guarded release functions', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /create or replace function public\.claim_job/i)
+  assert.match(sql, /operator_id\s+is\s+null/i)
+  assert.match(sql, /returning\s+id/i)
+  assert.match(sql, /create or replace function public\.release_job/i)
+  assert.match(sql, /actual_start\s+is\s+null/i)
   assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
 })
 
+test('worker invites are hashed one-time operator invites', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /create table(?: if not exists)? public\.user_invites/i)
+  assert.match(sql, /token_hash\s+text\s+(?:unique\s+)?not null/i)
+  assert.match(sql, /role\s+text\s+not null\s+default\s+'operator'/i)
+  assert.match(sql, /expires_at\s+timestamptz\s+not null/i)
+  assert.match(sql, /used_at\s+timestamptz/i)
+  assert.match(sql, /revoked_at\s+timestamptz/i)
+  assert.match(sql, /create or replace function public\.validate_user_invite/i)
+})
+
+test('invite signup trigger always creates operator profile', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /app_registration/i)
+  assert.match(sql, /worker_invite/i)
+  assert.match(sql, /insert into public\.users/i)
+  assert.match(sql, /'operator'/i)
+  assert.match(sql, /create trigger .*auth.*user|create trigger .*worker.*invite/i)
+})
+
 test('job photos bucket is private and policies bind photos to assigned jobs', () => {
-  const sql = readFileSync(migrationPath, 'utf8')
+  const sql = readFileSync(initPath, 'utf8')
   assert.match(sql, /'job-photos'\s*,\s*'job-photos'\s*,\s*false/i)
   assert.match(sql, /operator can manage assigned job photos/i)
 })
 
 test('audit trigger exists for jobs and settings', () => {
-  const sql = readFileSync(migrationPath, 'utf8')
+  const sql = readFileSync(initPath, 'utf8')
   assert.match(sql, /create trigger jobs_audit_trigger/i)
   assert.match(sql, /create trigger settings_audit_trigger/i)
 })
