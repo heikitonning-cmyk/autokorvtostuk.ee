@@ -2,23 +2,17 @@ import Link from 'next/link'
 import { MetricCard } from '@/components/MetricCard'
 import { JobCard } from '@/components/JobCard'
 import { getManagerJobs } from '@/lib/queries'
-import { freeCapacityDays, managerSummary } from '@/lib/dashboard'
+import { freeCapacityDays, jobsWithinDays, managerSummary } from '@/lib/dashboard'
 
 function eur(value: number) { return new Intl.NumberFormat('et-EE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value) }
-
-function plannedTimestamp(job: any): number {
-  if (job.start_planned) return new Date(job.start_planned).getTime()
-  if (job.planned_date) return new Date(`${job.planned_date}T12:00:00Z`).getTime()
-  return Number.NaN
-}
 
 export default async function ManagerPage() {
   const jobs = await getManagerJobs()
   const summary = managerSummary(jobs as any[])
   const freeDays = freeCapacityDays(jobs as any[])
-  const now = Date.now()
-  const weekJobs = jobs.filter((j: any) => { const t = plannedTimestamp(j); return Number.isFinite(t) && Math.abs(t - now) <= 7 * 86400000 })
-  const monthJobs = jobs.filter((j: any) => { const t = plannedTimestamp(j); return Number.isFinite(t) && Math.abs(t - now) <= 31 * 86400000 })
+  const now = new Date()
+  const weekJobs = jobsWithinDays(jobs as any[], 7, now)
+  const monthJobs = jobsWithinDays(jobs as any[], 31, now)
   const revenue = (arr: any[]) => arr.reduce((s, j) => s + Number(j.actual_total ?? j.estimated_total ?? 0), 0)
 
   return <div className="page stack-lg">
