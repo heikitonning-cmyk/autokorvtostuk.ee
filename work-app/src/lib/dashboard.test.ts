@@ -71,3 +71,18 @@ test('free capacity shows next seven days with at least two hours available', as
   assert.equal(result.some((d) => d.date === '2026-08-23'), false)
   assert.equal(result.find((d) => d.date === '2026-08-24')?.freeHours, 6)
 })
+
+test('upcoming manager jobs contain only future confirmed jobs in chronological order', () => {
+  assert.ok('upcomingJobs' in dashboardModule, 'upcomingJobs must exist')
+  const now = new Date('2026-08-23T21:54:00+03:00')
+  const input = [
+    { id: 'today', status: 'kinnitatud', start_planned: '2026-08-23T22:30:00+03:00', estimated_total: 90, actual_total: null },
+    { id: 'september', status: 'kinnitatud', start_planned: '2026-09-26T08:00:00+03:00', estimated_total: 240, actual_total: null },
+    { id: 'august', status: 'kinnitatud', start_planned: '2026-08-24T17:00:00+03:00', estimated_total: 120, actual_total: null },
+    { id: 'date-only', status: 'kinnitatud', start_planned: null, planned_date: '2026-08-25', estimated_total: 100, actual_total: null },
+    { id: 'new', status: 'uus', start_planned: '2026-08-24T09:00:00+03:00', estimated_total: 80, actual_total: null },
+    { id: 'cancelled', status: 'tuhistatud', start_planned: '2026-08-24T10:00:00+03:00', estimated_total: 80, actual_total: null },
+  ] as any[]
+  const result = (dashboardModule as any).upcomingJobs(input, now, 10)
+  assert.deepEqual(result.map((job: any) => job.id), ['august', 'date-only', 'september'])
+})
