@@ -26,6 +26,21 @@ test('planned datetime-local is interpreted in Tallinn time', () => {
   assert.equal((jobsModule as any).optionalIsoDateTime('2026-08-23T10:00'), '2026-08-23T07:00:00.000Z')
 })
 
+test('separate planned date and time combine in Tallinn time', () => {
+  assert.ok('combinePlannedDateTime' in jobsModule, 'combinePlannedDateTime must exist')
+  assert.equal((jobsModule as any).combinePlannedDateTime('2026-08-23', '10:30'), '2026-08-23T07:30:00.000Z')
+})
+
+test('planned date without time remains unscheduled', () => {
+  assert.ok('combinePlannedDateTime' in jobsModule, 'combinePlannedDateTime must exist')
+  assert.equal((jobsModule as any).combinePlannedDateTime('2026-08-23', ''), null)
+})
+
+test('date-only schedule shows date and Aeg määramata', () => {
+  assert.ok('formatPlannedSchedule' in jobsModule, 'formatPlannedSchedule must exist')
+  assert.equal((jobsModule as any).formatPlannedSchedule(null, '2026-08-23', null, null), '23.08.2026 · Aeg määramata')
+})
+
 test('missing planned time is shown as Aeg määramata', () => {
   assert.ok('formatPlannedTime' in jobsModule, 'formatPlannedTime must exist')
   assert.equal((jobsModule as any).formatPlannedTime(null), 'Aeg määramata')
