@@ -4,7 +4,7 @@ import { freeCapacityDays } from '@/lib/dashboard'
 import { formatPlannedTime } from '@/lib/jobs'
 import { StatusBadge } from '@/components/StatusBadge'
 import type { JobStatus } from '@/lib/domain'
-import { claimJob } from '../jobs/actions'
+import { claimJob } from '@/app/operator/actions'
 
 function tallinnDateKey(value = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
