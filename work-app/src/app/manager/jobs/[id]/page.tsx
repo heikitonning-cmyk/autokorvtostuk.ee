@@ -4,6 +4,7 @@ import { getCustomerSites, getJobDetail } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
 import { JobStopsEditor } from '@/components/JobStopsEditor'
 import { StopCorrectionForm } from '@/components/StopCorrectionForm'
+import { RouteOptimizationPanel } from '@/components/RouteOptimizationPanel'
 import { cancelJob, confirmJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
@@ -36,6 +37,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const editable = !locked.has(job.status)
   const waze = job.address ? `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes` : null
   const stops = [...(job.job_stops ?? [])].sort((a:any,b:any)=>Number(a.sequence_no)-Number(b.sequence_no))
+  const pendingCount = stops.filter((stop:any)=>stop.status==='pending').length
+  const routeHasProgress = Boolean(job.actual_start) || stops.some((stop:any)=>stop.status!=='pending' || Boolean(stop.actual_start))
   const sites = editable ? await getCustomerSites() : []
   const rawError = Array.isArray(query.error) ? query.error[0] : query.error
 
@@ -48,6 +51,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
 
     {stops.length > 0 && <section className="detail-card stack"><div><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id} className="stack"><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}{(stop.status === 'done' || stop.status === 'skipped') && <StopCorrectionForm jobId={job.id} stop={stop} />}</div>)}</div></section>}
+
+    {editable && stops.length > 0 && pendingCount >= 2 && routeHasProgress && <RouteOptimizationPanel jobId={job.id} mode="remaining" routeRevision={job.route_revision ?? 0} />}
 
     {editable && stops.length > 0 && <JobStopsEditor
       sites={sites.filter((site:any)=>!job.customer_id || site.customer_id===job.customer_id)}
