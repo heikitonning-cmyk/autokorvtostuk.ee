@@ -4,6 +4,7 @@ export interface SummaryJob {
   id: string
   status: JobStatus
   start_planned: string | null
+  planned_date?: string | null
   estimated_total: number | null
   actual_total: number | null
 }
@@ -17,7 +18,9 @@ function tallinnDateKey(value: Date): string {
 
 export function managerSummary(jobs: SummaryJob[], now = new Date()) {
   const todayKey = tallinnDateKey(now)
-  const todayJobs = jobs.filter((job) => job.start_planned && tallinnDateKey(new Date(job.start_planned)) === todayKey)
+  const todayJobs = jobs.filter((job) => job.start_planned
+    ? tallinnDateKey(new Date(job.start_planned)) === todayKey
+    : job.planned_date === todayKey)
   const newJobs = jobs.filter((job) => job.status === 'uus')
   const overdueNotStarted = jobs.filter((job) =>
     Boolean(job.start_planned) &&
