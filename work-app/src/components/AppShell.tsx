@@ -26,7 +26,6 @@ export function AppShell({ user, view, children }: { user: AppUser; view: AppVie
           <Link href="/manager/settings">Seaded</Link>
         </> : <>
           <Link href="/operator">Tööd</Link>
-          <Link href="/operator/calendar">Kalender</Link>
         </>}
       </nav>
     </div>
