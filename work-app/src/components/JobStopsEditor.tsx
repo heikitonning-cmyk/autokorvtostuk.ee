@@ -6,7 +6,7 @@ import { StopPicker, type StopDraft } from '@/components/StopPicker'
 import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEditor'
 import { RouteEndpointFields } from '@/components/RouteEndpointFields'
 import type { SiteOption } from '@/lib/job-stops'
-import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction } from '@/app/job-stop-actions'
+import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction, updateStopDescriptionAction } from '@/app/job-stop-actions'
 
 type DraftStop = StopOrderItem & { siteId: string | null }
 
@@ -116,6 +116,26 @@ export function JobStopsEditor({
     })
   }
 
+  function saveDescription(stopId: string, description: string) {
+    if (!jobId) return
+    setError(null)
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('stopId', stopId)
+    form.set('expectedRevision', String(revision))
+    form.set('description', description)
+    startTransition(async () => {
+      const result = await updateStopDescriptionAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Peatuse töö salvestamine ei õnnestunud.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
   function saveEndpoints() {
     if (!jobId) return
     setError(null)
@@ -156,7 +176,7 @@ export function JobStopsEditor({
       <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>
     </> : <p className="muted">Marsruudi algus ja lõpp: Luige (vaikimisi). Pärast töö salvestamist saad neid vajadusel muuta.</p>}
 
-    {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} />}
+    {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} onDescriptionSave={jobId ? saveDescription : undefined} />}
     <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
     {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
     {isPending && <small className="muted">Salvestan marsruuti…</small>}
