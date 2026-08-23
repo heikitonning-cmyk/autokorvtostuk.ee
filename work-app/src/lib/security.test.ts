@@ -12,6 +12,7 @@ const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_s
 const customerSitesPath = resolve(here, '../../supabase/migrations/20260823150000_customer_sites_and_neste.sql')
 const customerSiteEditPath = resolve(here, '../../supabase/migrations/20260823151000_customer_site_job_editing.sql')
 const siteBackfillPath = resolve(here, '../../supabase/migrations/20260823153000_backfill_job_sites.sql')
+const multiStopPath = resolve(here, '../../supabase/migrations/20260823160000_multi_stop_job_foundation.sql')
 
 test('schema defines all core tables and enables RLS', () => {
   const sql = readFileSync(initPath, 'utf8')
@@ -83,6 +84,22 @@ test('legacy jobs are safely linked to a matching customer site by object name',
   assert.match(sql, /site_id\s*=\s*s\.id/i)
   assert.match(sql, /s\.address/i)
   assert.match(sql, /j\.site_id\s+is\s+null/i)
+})
+
+test('multi-stop schema supports ordered duplicate site visits and stop photos', () => {
+  const sql = readFileSync(multiStopPath, 'utf8')
+  assert.match(sql, /create table(?: if not exists)? public\.job_stops/i)
+  assert.match(sql, /sequence_no\s+integer\s+not null/i)
+  assert.match(sql, /status\s+text\s+not null\s+default\s+'pending'/i)
+  assert.match(sql, /check\s*\(status\s+in\s*\('pending',\s*'in_progress',\s*'done',\s*'skipped'\)\)/i)
+  assert.match(sql, /add column if not exists route_revision bigint not null default 0/i)
+  assert.match(sql, /add column if not exists job_stop_id uuid/i)
+  assert.match(sql, /unique\s*\(id,\s*job_id\)/i)
+  assert.doesNotMatch(sql, /unique\s*\(job_id,\s*site_id\)/i)
+  assert.match(sql, /where status = 'in_progress'/i)
+  assert.match(sql, /execute function private\.set_updated_at\(\)/i)
+  assert.match(sql, /base_location/i)
+  assert.match(sql, /Luige/i)
 })
 
 test('worker migration defines atomic claim and guarded release functions', () => {
