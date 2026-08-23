@@ -6,18 +6,20 @@ import { ElapsedTimer } from '@/components/ElapsedTimer'
 import { PhotoUploader } from '@/components/PhotoUploader'
 import { saveWorkNote, startJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
+import { formatPlannedSchedule } from '@/lib/jobs'
 
 export default async function OperatorJobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
   const query = await searchParams
   let job: any
   try { job = await getOperatorJob(id) } catch { notFound() }
-  const waze = `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes`
+  const planned = formatPlannedSchedule(job.start_planned, job.planned_date, job.planned_time, job.planned_end_time)
+  const waze = job.address ? `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes` : null
   return <div className="page narrow stack-lg operator-job">
-    <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name}</h1></div><StatusBadge status={job.status as JobStatus} /></div>
+    <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{planned}</p></div><StatusBadge status={job.status as JobStatus} /></div>
     {query.error && <div className="alert danger">Salvestamine ei õnnestunud. Proovi uuesti.</div>}
-    <section className="detail-card important"><p className="operator-address">{job.address}</p><div className="action-grid two"><a className="button secondary" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>{job.customer?.phone && <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a>}</div></section>
-    <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
+    <section className="detail-card important"><p className="operator-address">{job.address || 'Aadress määramata'}</p><div className="action-grid two">{waze ? <a className="button secondary" href={waze} target="_blank" rel="noreferrer">Navigeeri</a> : <span className="button disabled">Aadress puudub</span>}{job.customer?.phone ? <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a> : <span className="button disabled">Telefon puudub</span>}</div></section>
+    <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
     {['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
     {job.status === 'toob' && <>
       <ElapsedTimer startedAt={job.actual_start} />
