@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { AppUser, UserRole } from '@/lib/domain'
-import { homeForRole } from '@/lib/auth'
+import { canAccessView, homeForRole, type AppView } from '@/lib/auth'
 
 export async function currentUser(): Promise<AppUser | null> {
   const supabase = await createClient()
@@ -22,5 +22,12 @@ export async function requireUser(role?: UserRole): Promise<AppUser> {
   const user = await currentUser()
   if (!user || !user.active) redirect('/login')
   if (role && user.role !== role) redirect(homeForRole(user.role))
+  return user
+}
+
+export async function requireView(view: AppView): Promise<AppUser> {
+  const user = await currentUser()
+  if (!user || !user.active) redirect('/login')
+  if (!canAccessView(user.role, view)) redirect(homeForRole(user.role))
   return user
 }

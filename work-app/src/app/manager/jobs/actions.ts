@@ -38,7 +38,7 @@ export async function createJob(formData: FormData) {
   const { data, error } = await supabase.from('jobs').insert({
     customer_id: optionalText(formData.get('customerId')),
     vehicle_id: optionalText(formData.get('vehicleId')),
-    operator_id: optionalText(formData.get('operatorId')),
+    operator_id: null,
     planned_date: plannedDate,
     planned_time: plannedTime,
     planned_end_time: plannedEndTime,
@@ -66,6 +66,7 @@ export async function createJob(formData: FormData) {
 
   revalidatePath('/manager')
   revalidatePath('/manager/calendar')
+  revalidatePath('/operator')
   redirect(`/manager/jobs/${data.id}`)
 }
 
@@ -89,6 +90,7 @@ export async function confirmJob(formData: FormData) {
     estimated_total: price.total,
   }).eq('id', id)
   revalidatePath('/manager')
+  revalidatePath('/operator')
   revalidatePath(`/manager/jobs/${id}`)
 }
 
@@ -98,5 +100,6 @@ export async function cancelJob(formData: FormData) {
   const supabase = await createClient()
   await supabase.from('jobs').update({ status: 'tuhistatud' }).eq('id', id)
   revalidatePath('/manager')
+  revalidatePath('/operator')
   revalidatePath(`/manager/jobs/${id}`)
 }

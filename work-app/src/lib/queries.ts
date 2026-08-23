@@ -71,6 +71,32 @@ export async function getJobDetail(id: string) {
   return data
 }
 
+export async function getWorkerJobs(userId: string) {
+  const supabase = await createClient()
+  const select = '*, customer:customers(id,name,phone,email), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number)'
+  const [free, mine] = await Promise.all([
+    supabase
+      .from('jobs')
+      .select(select)
+      .is('operator_id', null)
+      .neq('status', 'tuhistatud')
+      .order('planned_date', { ascending: true, nullsFirst: false })
+      .order('planned_time', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('jobs')
+      .select(select)
+      .eq('operator_id', userId)
+      .neq('status', 'tuhistatud')
+      .order('planned_date', { ascending: true, nullsFirst: false })
+      .order('planned_time', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true }),
+  ])
+  if (free.error) throw free.error
+  if (mine.error) throw mine.error
+  return { freeJobs: free.data ?? [], mineJobs: mine.data ?? [] }
+}
+
 export async function getOperatorTodayJobs(operatorId: string) {
   const supabase = await createClient()
   const now = new Date()

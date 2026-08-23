@@ -2,14 +2,14 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { requireUser } from '@/lib/session'
+import { requireView } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { canTransition, completionStatus } from '@/lib/status'
 import { calculatePrice } from '@/lib/pricing'
 import { getPricingSettings } from '@/lib/queries'
 
 export async function startJob(formData: FormData) {
-  const user = await requireUser('operator')
+  const user = await requireView('worker')
   const id = String(formData.get('id') ?? '')
   const supabase = await createClient()
   const { data: job } = await supabase.from('jobs').select('id,status,operator_id').eq('id', id).single()
@@ -17,11 +17,12 @@ export async function startJob(formData: FormData) {
   const { error } = await supabase.from('jobs').update({ status: 'toob', actual_start: new Date().toISOString() }).eq('id', id).eq('operator_id', user.id)
   if (error) redirect(`/operator/jobs/${id}?error=save`)
   revalidatePath('/operator')
+  revalidatePath('/manager')
   redirect(`/operator/jobs/${id}`)
 }
 
 export async function saveWorkNote(formData: FormData) {
-  const user = await requireUser('operator')
+  const user = await requireView('worker')
   const id = String(formData.get('id') ?? '')
   const note = String(formData.get('operatorNote') ?? '').trim()
   const supabase = await createClient()
@@ -30,7 +31,7 @@ export async function saveWorkNote(formData: FormData) {
 }
 
 export async function finishJob(formData: FormData) {
-  const user = await requireUser('operator')
+  const user = await requireView('worker')
   const id = String(formData.get('id') ?? '')
   const supabase = await createClient()
   const { data: job } = await supabase.from('jobs').select('*').eq('id', id).eq('operator_id', user.id).single()
