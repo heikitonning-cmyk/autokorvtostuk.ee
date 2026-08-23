@@ -2,15 +2,16 @@ import Link from 'next/link'
 import { MetricCard } from '@/components/MetricCard'
 import { JobCard } from '@/components/JobCard'
 import { getManagerJobs } from '@/lib/queries'
-import { freeCapacityDays, jobsWithinDays, managerSummary } from '@/lib/dashboard'
+import { freeCapacityDays, jobsWithinDays, managerSummary, upcomingJobs } from '@/lib/dashboard'
 
 function eur(value: number) { return new Intl.NumberFormat('et-EE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value) }
 
 export default async function ManagerPage() {
   const jobs = await getManagerJobs()
-  const summary = managerSummary(jobs as any[])
-  const freeDays = freeCapacityDays(jobs as any[])
   const now = new Date()
+  const summary = managerSummary(jobs as any[], now)
+  const freeDays = freeCapacityDays(jobs as any[], now)
+  const upcoming = upcomingJobs(jobs as any[], now, 10)
   const weekJobs = jobsWithinDays(jobs as any[], 7, now)
   const monthJobs = jobsWithinDays(jobs as any[], 31, now)
   const revenue = (arr: any[]) => arr.reduce((s, j) => s + Number(j.actual_total ?? j.estimated_total ?? 0), 0)
@@ -31,5 +32,6 @@ export default async function ManagerPage() {
     {summary.newJobs.length > 0 && <section><div className="section-title"><h2>Uued broneeringud</h2></div><div className="job-list">{summary.newJobs.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
     {summary.overdueNotStarted.length > 0 && <section><div className="section-title"><h2>Kontrolli kohe</h2></div><div className="job-list">{summary.overdueNotStarted.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
     <section><div className="section-title"><h2>Tänased tööd</h2><Link href="/manager/calendar">Ava kalender</Link></div><div className="job-list">{summary.todayJobs.length ? summary.todayJobs.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />) : <div className="empty">Tänaseks töid ei ole.</div>}</div></section>
+    {upcoming.length > 0 && <section><div className="section-title"><h2>Tulevased tööd</h2><Link href="/manager/calendar">Ava kalender</Link></div><div className="job-list">{upcoming.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
   </div>
 }
