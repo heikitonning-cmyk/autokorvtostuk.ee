@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPricingSettings } from '@/lib/queries'
 import { calculatePrice, createPriceSnapshot } from '@/lib/pricing'
 import { combinePlannedDateTime, formatSaveError } from '@/lib/jobs'
+import { normalizeSiteChoice } from '@/lib/customer-sites'
 
 const num = (value: FormDataEntryValue | null, fallback = 0) => {
   const text = String(value ?? '').trim()
@@ -34,9 +35,49 @@ export async function createJob(formData: FormData) {
   const plannedDate = optionalText(formData.get('plannedDate'))
   const plannedTime = optionalText(formData.get('plannedTime'))
   const plannedEndTime = optionalText(formData.get('plannedEndTime'))
+  const customerId = optionalText(formData.get('customerId'))
+  const choice = normalizeSiteChoice({
+    siteId: String(formData.get('siteId') ?? ''),
+    newSiteName: String(formData.get('newSiteName') ?? ''),
+    newSiteAddress: String(formData.get('newSiteAddress') ?? ''),
+  })
   const supabase = await createClient()
+
+  let siteId = choice.siteId
+  let siteName: string | null = null
+  let siteAddress: string | null = null
+
+  if (siteId) {
+    if (!customerId) redirect(`/manager/jobs/new?error=${encodeURIComponent('Asukoha valimiseks peab olema valitud klient.')}`)
+    const { data: site, error: siteError } = await supabase
+      .from('customer_sites')
+      .select('id,name,address')
+      .eq('id', siteId)
+      .eq('customer_id', customerId)
+      .single()
+    if (siteError || !site) redirect(`/manager/jobs/new?error=${encodeURIComponent(formatSaveError(siteError ?? { message: 'Valitud asukoht ei kuulu valitud kliendile.' }))}`)
+    siteName = site.name
+    siteAddress = site.address
+  } else if (choice.newSite && customerId) {
+    const { data: newSite, error: siteError } = await supabase.from('customer_sites').insert({
+      customer_id: customerId,
+      name: choice.newSite.name,
+      address: choice.newSite.address,
+      source: 'manual',
+      active: true,
+    }).select('id,name,address').single()
+    if (siteError || !newSite) redirect(`/manager/jobs/new?error=${encodeURIComponent(formatSaveError(siteError ?? { message: 'Uue asukoha loomine ei õnnestunud.' }))}`)
+    siteId = newSite.id
+    siteName = newSite.name
+    siteAddress = newSite.address
+  }
+
+  const objectName = optionalText(formData.get('objectName')) ?? siteName
+  const address = optionalText(formData.get('address')) ?? siteAddress
+
   const { data, error } = await supabase.from('jobs').insert({
-    customer_id: optionalText(formData.get('customerId')),
+    customer_id: customerId,
+    site_id: siteId,
     vehicle_id: optionalText(formData.get('vehicleId')),
     operator_id: null,
     planned_date: plannedDate,
@@ -44,8 +85,8 @@ export async function createJob(formData: FormData) {
     planned_end_time: plannedEndTime,
     start_planned: combinePlannedDateTime(plannedDate, plannedTime),
     end_planned: combinePlannedDateTime(plannedDate, plannedEndTime),
-    address: optionalText(formData.get('address')),
-    object_name: optionalText(formData.get('objectName')),
+    address,
+    object_name: objectName,
     work_type_id: optionalText(formData.get('workTypeId')),
     description: optionalText(formData.get('description')),
     access_notes: optionalText(formData.get('accessNotes')),
@@ -66,6 +107,8 @@ export async function createJob(formData: FormData) {
 
   revalidatePath('/manager')
   revalidatePath('/manager/calendar')
+  revalidatePath('/manager/customers')
+  revalidatePath('/manager/jobs/new')
   revalidatePath('/operator')
   redirect(`/manager/jobs/${data.id}`)
 }
