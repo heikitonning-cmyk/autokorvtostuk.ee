@@ -28,61 +28,40 @@ export type StopOrderItem = {
   status: JobStopStatus
 }
 
-function SortableStop({ stop }: { stop: StopOrderItem }) {
+function SortableStop({ stop, onDescriptionSave }: { stop: StopOrderItem; onDescriptionSave?: (stopId: string, description: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stop.id })
-  return <div
-    ref={setNodeRef}
-    className="detail-card"
-    style={{
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.65 : 1,
-      display: 'flex',
-      gap: 12,
-      alignItems: 'center',
-    }}
-  >
-    <button
-      type="button"
-      className="button secondary"
-      aria-label={`Muuda peatuse ${stop.name_snapshot || stop.address_snapshot} järjekorda`}
-      style={{ touchAction: 'none', minWidth: 48 }}
-      {...attributes}
-      {...listeners}
-    >
-      ⋮⋮
-    </button>
-    <div>
-      <strong>{stop.name_snapshot || stop.address_snapshot}</strong>
-      <small className="muted" style={{ display: 'block' }}>{stop.address_snapshot}</small>
+  const [description, setDescription] = useState(stop.description ?? '')
+  useEffect(() => setDescription(stop.description ?? ''), [stop.description])
+
+  return <div ref={setNodeRef} className="detail-card stack" style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.65 : 1 }}>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <button type="button" className="button secondary" aria-label={`Muuda peatuse ${stop.name_snapshot || stop.address_snapshot} järjekorda`} style={{ touchAction: 'none', minWidth: 48 }} {...attributes} {...listeners}>⋮⋮</button>
+      <div style={{ flex: 1 }}><strong>{stop.name_snapshot || stop.address_snapshot}</strong><small className="muted" style={{ display: 'block' }}>{stop.address_snapshot}</small></div>
     </div>
+    {onDescriptionSave && <div className="stack">
+      <label>Peatuse töö<textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Soovi korral täpsusta, mida siin teha" /></label>
+      <button type="button" className="button secondary wide" onClick={() => onDescriptionSave(stop.id, description)}>Salvesta peatuse töö</button>
+    </div>}
   </div>
 }
 
 function FixedStop({ stop }: { stop: StopOrderItem }) {
-  const labels: Record<JobStopStatus, string> = {
-    pending: 'Ootel',
-    in_progress: 'Töös',
-    done: 'Tehtud',
-    skipped: 'Vahele jäetud',
-  }
+  const labels: Record<JobStopStatus, string> = { pending: 'Ootel', in_progress: 'Töös', done: 'Tehtud', skipped: 'Vahele jäetud' }
   return <div className="detail-card" style={{ opacity: stop.status === 'pending' ? 1 : 0.72 }}>
     <strong>{stop.name_snapshot || stop.address_snapshot}</strong>
     <small className="muted" style={{ display: 'block' }}>{stop.address_snapshot} · {labels[stop.status]}</small>
+    {stop.description && <small style={{ display: 'block' }}>{stop.description}</small>}
   </div>
 }
 
-export function StopOrderEditor({
-  stops,
-  onReorder,
-}: {
+export function StopOrderEditor({ stops, onReorder, onDescriptionSave }: {
   stops: StopOrderItem[]
   onReorder: (pendingStopIds: string[]) => void
+  onDescriptionSave?: (stopId: string, description: string) => void
 }) {
   const sorted = useMemo(() => [...stops].sort((a, b) => a.sequence_no - b.sequence_no), [stops])
   const initialPending = useMemo(() => sorted.filter((stop) => stop.status === 'pending').map((stop) => stop.id), [sorted])
   const [pendingIds, setPendingIds] = useState(initialPending)
-
   useEffect(() => setPendingIds(initialPending), [initialPending])
 
   const sensors = useSensors(
@@ -112,11 +91,9 @@ export function StopOrderEditor({
 
   return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
     <SortableContext items={pendingIds} strategy={verticalListSortingStrategy}>
-      <div className="stack">
-        {displayRows.map((stop) => stop.status === 'pending'
-          ? <SortableStop key={stop.id} stop={stop} />
-          : <FixedStop key={stop.id} stop={stop} />)}
-      </div>
+      <div className="stack">{displayRows.map((stop) => stop.status === 'pending'
+        ? <SortableStop key={stop.id} stop={stop} onDescriptionSave={onDescriptionSave} />
+        : <FixedStop key={stop.id} stop={stop} />)}</div>
     </SortableContext>
   </DndContext>
 }
