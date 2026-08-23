@@ -23,6 +23,7 @@
 - `skipped` requires a non-empty completion note; photo is optional.
 - A multi-stop job cannot finish while any stop is `pending` or `in_progress`.
 - Waze is the navigation target.
+- Every planning or operational change that affects the remaining route increments `jobs.route_revision`.
 - Every implementation task follows TDD: test first, observe RED, implement minimally, observe GREEN, then commit.
 
 ---
@@ -31,7 +32,7 @@
 
 ### Database
 - Create `work-app/supabase/migrations/20260823153000_multi_stop_job_foundation.sql` — tables, columns, constraints, indexes, RLS/read policies, base-location setting.
-- Create `work-app/supabase/migrations/20260823154000_multi_stop_job_mutations.sql` — guarded add/reorder/endpoint/start/complete/skip RPCs and job-finish guard.
+- Create `work-app/supabase/migrations/20260823154000_multi_stop_job_mutations.sql` — guarded add/reorder/endpoint/start/complete/skip RPCs and route-revision updates.
 - Modify `work-app/src/lib/security.test.ts` — schema/RPC acceptance tests.
 
 ### Domain/query layer
@@ -46,6 +47,7 @@
 - Create `work-app/src/components/JobStopsEditor.tsx` — compose picker/order/endpoints/add-stop flow.
 - Modify `work-app/package.json` and lockfile — add dnd-kit dependencies.
 - Modify `work-app/src/app/manager/jobs/new/page.tsx` — allow multi-stop creation.
+- Modify `work-app/src/app/manager/jobs/actions.ts` — persist the initial stop batch after creating the job header and before redirect.
 - Modify `work-app/src/components/JobEditForm.tsx` — expose stop editor for existing multi-stop jobs.
 - Modify manager/operator edit pages to pass existing stops and route revision.
 
@@ -73,7 +75,7 @@
 **Interfaces:**
 - Produces table `public.job_stops` and `jobs.route_revision`, `jobs.route_start_site_id`, `jobs.route_start_address`, `jobs.route_end_site_id`, `jobs.route_end_address`.
 - Produces nullable `job_photos.job_stop_id` while retaining `job_photos.job_id`.
-- Produces `settings.key='base_location'` JSON value `{ "label": "Luige", "address": "Luige, Harju maakond, Estonia" }` only when absent.
+- Produces `settings.key='base_location'` JSON value `{ "label": "Luige", "address": "Luige, Estonia" }` only when absent; the existing Settings UI may later make the address more precise without changing this model.
 
 - [ ] **Step 1: Write the failing schema tests**
 
@@ -93,6 +95,7 @@ test('multi-stop schema supports ordered duplicate site visits and stop photos',
   assert.match(sql, /unique\s*\(id,\s*job_id\)/i)
   assert.doesNotMatch(sql, /unique\s*\(job_id,\s*site_id\)/i)
   assert.match(sql, /where status = 'in_progress'/i)
+  assert.match(sql, /execute function private\.set_updated_at\(\)/i)
   assert.match(sql, /base_location/i)
   assert.match(sql, /Luige/i)
 })
@@ -109,7 +112,7 @@ Expected: FAIL because the migration file and required schema do not exist.
 
 - [ ] **Step 3: Implement the migration**
 
-Create `job_stops` with snapshot fields and status constraint, then add route fields and photo relation. Use the existing private timestamp trigger:
+Create `job_stops` with snapshot fields and status constraint, then add route fields and photo relation:
 
 ```sql
 create table if not exists public.job_stops (
@@ -135,6 +138,10 @@ create table if not exists public.job_stops (
 create unique index if not exists job_stops_one_in_progress_per_job
   on public.job_stops(job_id) where status = 'in_progress';
 
+create trigger job_stops_updated_at
+before update on public.job_stops
+for each row execute function private.set_updated_at();
+
 alter table public.jobs
   add column if not exists route_revision bigint not null default 0,
   add column if not exists route_start_site_id uuid references public.customer_sites(id),
@@ -143,16 +150,26 @@ alter table public.jobs
   add column if not exists route_end_address text;
 
 alter table public.job_photos add column if not exists job_stop_id uuid;
-alter table public.job_photos
-  add constraint job_photos_stop_same_job_fkey
-  foreign key (job_stop_id, job_id) references public.job_stops(id, job_id);
 ```
 
-Enable RLS on `job_stops`; allow manager/operator reads consistent with current job visibility; do not add broad client update policies. Insert base location only if missing:
+Add the composite FK idempotently:
+
+```sql
+do $$ begin
+  alter table public.job_photos
+    add constraint job_photos_stop_same_job_fkey
+    foreign key (job_stop_id, job_id) references public.job_stops(id, job_id);
+exception when duplicate_object then null;
+end $$;
+```
+
+Enable RLS on `job_stops`. Manager may read all; operator may read stops whose parent job is non-cancelled, matching current shared-job visibility. Do not add broad client insert/update/delete policies; writes use guarded RPCs.
+
+Insert base location only if missing:
 
 ```sql
 insert into public.settings(key, value)
-values ('base_location', '{"label":"Luige","address":"Luige, Harju maakond, Estonia"}'::jsonb)
+values ('base_location', '{"label":"Luige","address":"Luige, Estonia"}'::jsonb)
 on conflict (key) do nothing;
 ```
 
@@ -185,7 +202,7 @@ git commit -m "feat: add multi-stop job schema"
 - Produces `public.reorder_job_stops(p_job_id uuid, p_stop_ids uuid[], p_expected_revision bigint) returns bigint`.
 - Produces `public.update_job_route_endpoints(p_job_id uuid, p_start_site_id uuid, p_start_address text, p_end_site_id uuid, p_end_address text, p_expected_revision bigint) returns bigint`.
 - Produces `public.start_job_stop(p_stop_id uuid)`, `public.complete_job_stop(p_stop_id uuid, p_note text)`, `public.skip_job_stop(p_stop_id uuid, p_note text)`.
-- All planning RPCs return the incremented `jobs.route_revision`.
+- Every successful planning or stop-state mutation increments and returns the parent `jobs.route_revision`.
 
 - [ ] **Step 1: Write failing security/RPC tests**
 
@@ -204,6 +221,7 @@ test('multi-stop mutations guard stale reorders and operator execution', () => {
   assert.match(sql, /completion_note/i)
   assert.match(sql, /job_photos/i)
   assert.match(sql, /create or replace function public\.skip_job_stop/i)
+  assert.match(sql, /insert into public\.job_events/i)
 })
 ```
 
@@ -218,7 +236,7 @@ Expected: FAIL because guarded RPCs are absent.
 
 - [ ] **Step 3: Implement planning RPC guards**
 
-Each planning RPC must:
+Each planning RPC must lock the parent job and reject stale revisions:
 
 ```sql
 if private.current_app_role() not in ('operator','manager') then
@@ -236,7 +254,21 @@ if v_revision is null or v_revision <> p_expected_revision then
 end if;
 ```
 
-`reorder_job_stops` validates the supplied IDs are exactly the movable `pending` IDs being reordered, uses a temporary offset to avoid unique sequence collisions, writes final `sequence_no`, increments `route_revision`, and records a `job_events` row.
+`reorder_job_stops` validates that `p_stop_ids` contains every and only current `pending` stop exactly once. Read the sorted existing `sequence_no` values of those pending stops into `v_slots`; reassign the requested IDs into those same slots. This changes pending order without moving `in_progress`, `done`, or `skipped` historical positions. Use a temporary offset during the transaction to avoid the `(job_id, sequence_no)` unique constraint, then assign final values from `v_slots`.
+
+After a successful planning mutation:
+
+```sql
+update public.jobs
+set route_revision = route_revision + 1
+where id = p_job_id
+returning route_revision into v_new_revision;
+
+insert into public.job_events(job_id, actor_id, event_type, payload)
+values (p_job_id, auth.uid(), 'stops_reordered', jsonb_build_object('stop_ids', p_stop_ids, 'revision', v_new_revision));
+```
+
+Use event types `stops_added`, `stops_reordered`, and `route_endpoints_changed` for the three planning operations.
 
 - [ ] **Step 4: Implement operator-only execution RPCs**
 
@@ -258,6 +290,8 @@ end if;
 ```
 
 `skip_job_stop` requires only a non-empty note and permits `pending` or `in_progress`.
+
+Each of `start_job_stop`, `complete_job_stop`, and `skip_job_stop` increments the parent `route_revision` in the same transaction and inserts `job_events` with event types `stop_started`, `stop_completed`, or `stop_skipped`, including `stop_id` and the new revision in payload.
 
 - [ ] **Step 5: Run tests and verify GREEN**
 
@@ -385,11 +419,9 @@ git commit -m "feat: add job stop domain helpers"
 **Interfaces:**
 - `StopPicker({ sites, onAdd })` calls `onAdd(selectedSites: SiteOption[])` preserving selected order.
 - `StopOrderEditor({ stops, onReorder })` returns only pending-stop IDs in desired order.
-- `JobStopsEditor` submits `add_job_stops`, endpoint updates and reorder through shared server actions.
+- `JobStopsEditor` submits add, endpoint updates and reorder through shared server actions.
 
 - [ ] **Step 1: Add failing acceptance tests**
-
-Require the source to contain the agreed copy and multi-selection behavior:
 
 ```ts
 test('multi-stop editor supports search, many selected sites and mobile reorder', () => {
@@ -435,7 +467,7 @@ const sensors = useSensors(
 )
 ```
 
-Render terminal stops as fixed rows and only pending stops as sortable items.
+Render `in_progress`, `done`, and `skipped` stops as fixed rows and only `pending` stops as sortable items. Submit every pending stop ID exactly once; the server maps this requested order back into the existing pending sequence slots.
 
 - [ ] **Step 6: Compose `JobStopsEditor`**
 
@@ -466,6 +498,7 @@ git commit -m "feat: add multi-stop picker and ordering UI"
 **Files:**
 - Create: `work-app/src/app/job-stop-actions.ts`
 - Modify: `work-app/src/app/manager/jobs/new/page.tsx`
+- Modify: `work-app/src/app/manager/jobs/actions.ts`
 - Modify: `work-app/src/components/JobEditForm.tsx`
 - Modify: `work-app/src/app/manager/jobs/[id]/edit/page.tsx`
 - Modify: `work-app/src/app/operator/jobs/[id]/edit/page.tsx`
@@ -475,16 +508,20 @@ git commit -m "feat: add multi-stop picker and ordering UI"
 - `addStopsAction(formData)` calls `add_job_stops` with JSON snapshots and current revision.
 - `reorderStopsAction(formData)` calls `reorder_job_stops`.
 - `updateRouteEndpointsAction(formData)` calls `update_job_route_endpoints`.
-- All action failures redirect back with `?error=stale-route` or `?error=save` without mutating local ordering.
+- `createJob(formData)` accepts hidden `initialStopsJson`, creates the job header, calls `add_job_stops(jobId, initialStops, 0)`, and redirects only after both writes succeed.
+- All action failures redirect back with `?error=stale-route` or `?error=save` without applying a partial reorder.
 
 - [ ] **Step 1: Write failing acceptance tests**
 
 ```ts
 test('manager and worker edit flows expose shared multi-stop planning actions', () => {
   const actions = readFileSync(resolve(root, 'src/app/job-stop-actions.ts'), 'utf8')
+  const managerActions = readFileSync(resolve(root, 'src/app/manager/jobs/actions.ts'), 'utf8')
   assert.match(actions, /add_job_stops/)
   assert.match(actions, /reorder_job_stops/)
   assert.match(actions, /update_job_route_endpoints/)
+  assert.match(managerActions, /initialStopsJson/)
+  assert.match(managerActions, /add_job_stops/)
   const form = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
   assert.match(form, /JobStopsEditor/)
 })
@@ -501,11 +538,15 @@ npm test
 
 Parse `expectedRevision` as integer; parse stop JSON as `{siteId,name,address,description}[]`; reject blank addresses before RPC. Map Supabase stale-revision errors to `error=stale-route`.
 
-- [ ] **Step 4: Integrate create/edit pages**
+- [ ] **Step 4: Integrate new-job creation atomically from the user's perspective**
 
-New-job flow creates the job header first, then adds the selected stop batch using revision `0`. Edit flows fetch `job_stops` + `route_revision` and render `JobStopsEditor`. Keep `JobLocationFields` for legacy jobs with zero stops and provide a clear `Lisa peatused` conversion affordance.
+`JobStopsEditor` on the new-job page writes selected stop snapshots into a hidden `initialStopsJson` field. `createJob` creates the job header, then immediately invokes `add_job_stops` with expected revision `0`. If stop creation fails after header insertion, delete the just-created job before redirecting back with an error so the user never sees a half-created multi-stop job.
 
-- [ ] **Step 5: Run tests/typecheck/build and verify GREEN**
+- [ ] **Step 5: Integrate edit pages**
+
+Edit flows fetch `job_stops` + `route_revision` and render `JobStopsEditor`. Keep `JobLocationFields` for legacy jobs with zero stops and provide a clear `Lisa peatused` conversion affordance.
+
+- [ ] **Step 6: Run tests/typecheck/build and verify GREEN**
 
 ```bash
 cd work-app
@@ -514,10 +555,10 @@ npm run typecheck
 npm run build
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add work-app/src/app/job-stop-actions.ts work-app/src/app/manager/jobs/new/page.tsx work-app/src/components/JobEditForm.tsx work-app/src/app/manager/jobs/[id]/edit/page.tsx work-app/src/app/operator/jobs/[id]/edit/page.tsx work-app/tests/acceptance.test.ts
+git add work-app/src/app/job-stop-actions.ts work-app/src/app/manager/jobs/new/page.tsx work-app/src/app/manager/jobs/actions.ts work-app/src/components/JobEditForm.tsx work-app/src/app/manager/jobs/[id]/edit/page.tsx work-app/src/app/operator/jobs/[id]/edit/page.tsx work-app/tests/acceptance.test.ts
 git commit -m "feat: wire multi-stop planning actions"
 ```
 
@@ -614,8 +655,8 @@ git commit -m "feat: execute and document job stops"
 
 **Interfaces:**
 - `+ Lisa peatus` remains available while the parent job is editable.
-- New stops append after the current unfinished sequence; terminal rows retain their historical sequence/display position.
-- Both roles can reorder only pending rows.
+- New stops append at `max(sequence_no)+1`; they can then be moved among pending sequence slots.
+- Both roles can reorder only pending rows; `in_progress`, `done`, and `skipped` sequence slots remain fixed.
 
 - [ ] **Step 1: Write failing acceptance test**
 
@@ -710,7 +751,7 @@ if ((stops?.length ?? 0) > 0 && stops!.some((s) => s.status === 'pending' || s.s
 }
 ```
 
-Do not require job-level photos for multi-stop jobs beyond the existing `completionStatus` behavior without first counting all stop photos as job photos; they already share `job_id`.
+Do not require an extra job-level photo for multi-stop jobs; existing stop photos already share `job_id` and satisfy the existing job photo count used by `completionStatus`.
 
 - [ ] **Step 4: Render completion summary**
 
@@ -758,7 +799,7 @@ Expected: all commands exit 0.
 
 - [ ] **Step 2: Apply migrations to production Supabase**
 
-Apply `20260823153000_multi_stop_job_foundation.sql`, then `20260823154000_multi_stop_job_mutations.sql`. Verify `job_stops` exists, duplicate `site_id` rows are permitted, and only one `in_progress` stop per job is enforced.
+Apply `20260823153000_multi_stop_job_foundation.sql`, then `20260823154000_multi_stop_job_mutations.sql`. Verify `job_stops` exists, duplicate `site_id` rows are permitted, only one `in_progress` stop per job is enforced, and route revision changes on add/reorder/start/done/skip.
 
 - [ ] **Step 3: Verify Vercel deployment**
 
