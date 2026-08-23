@@ -8,6 +8,21 @@ import { canTransition, completionStatus } from '@/lib/status'
 import { calculatePrice } from '@/lib/pricing'
 import { getPricingSettings } from '@/lib/queries'
 
+function stopErrorCode(message: string | undefined) {
+  const value = String(message ?? '').toLowerCase()
+  if (value.includes('completion note required')) return 'note-required'
+  if (value.includes('stop photo required')) return 'photo-required'
+  if (value.includes('not assigned') || value.includes('operator')) return 'not-assigned'
+  return 'stop-state'
+}
+
+function revalidateJob(jobId: string) {
+  revalidatePath('/operator')
+  revalidatePath('/manager')
+  revalidatePath(`/operator/jobs/${jobId}`)
+  revalidatePath(`/manager/jobs/${jobId}`)
+}
+
 export async function startJob(formData: FormData) {
   const user = await requireView('worker')
   const id = String(formData.get('id') ?? '')
@@ -19,6 +34,43 @@ export async function startJob(formData: FormData) {
   revalidatePath('/operator')
   revalidatePath('/manager')
   redirect(`/operator/jobs/${id}`)
+}
+
+export async function startJobStop(formData: FormData) {
+  await requireView('worker')
+  const jobId = String(formData.get('jobId') ?? '')
+  const stopId = String(formData.get('stopId') ?? '')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('start_job_stop', { p_stop_id: stopId })
+  if (error) redirect(`/operator/jobs/${jobId}?error=${stopErrorCode(error.message)}`)
+  revalidateJob(jobId)
+  redirect(`/operator/jobs/${jobId}`)
+}
+
+export async function completeJobStop(formData: FormData) {
+  await requireView('worker')
+  const jobId = String(formData.get('jobId') ?? '')
+  const stopId = String(formData.get('stopId') ?? '')
+  const note = String(formData.get('completionNote') ?? '').trim()
+  if (!note) redirect(`/operator/jobs/${jobId}?error=note-required`)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('complete_job_stop', { p_stop_id: stopId, p_note: note })
+  if (error) redirect(`/operator/jobs/${jobId}?error=${stopErrorCode(error.message)}`)
+  revalidateJob(jobId)
+  redirect(`/operator/jobs/${jobId}`)
+}
+
+export async function skipJobStop(formData: FormData) {
+  await requireView('worker')
+  const jobId = String(formData.get('jobId') ?? '')
+  const stopId = String(formData.get('stopId') ?? '')
+  const note = String(formData.get('completionNote') ?? '').trim()
+  if (!note) redirect(`/operator/jobs/${jobId}?error=note-required`)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('skip_job_stop', { p_stop_id: stopId, p_note: note })
+  if (error) redirect(`/operator/jobs/${jobId}?error=${stopErrorCode(error.message)}`)
+  revalidateJob(jobId)
+  redirect(`/operator/jobs/${jobId}`)
 }
 
 export async function saveWorkNote(formData: FormData) {
