@@ -30,22 +30,30 @@ test('new job form exposes separate date and time controls without operator assi
   assert.doesNotMatch(page, /name="operatorId"/)
 })
 
-test('manager and worker can open edit forms for unfinished jobs', () => {
+test('manager and worker can open the same edit form for unfinished jobs', () => {
   const managerDetail = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
   const workerDetail = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
   const managerEdit = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/edit/page.tsx'), 'utf8')
   const workerEdit = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/edit/page.tsx'), 'utf8')
+  const form = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
   assert.match(managerDetail, /Muuda/)
   assert.match(managerDetail, /\/manager\/jobs\/\$\{job\.id\}\/edit/)
   assert.match(workerDetail, /Muuda/)
   assert.match(workerDetail, /\/operator\/jobs\/\$\{job\.id\}\/edit/)
-  for (const page of [managerEdit, workerEdit]) {
-    assert.match(page, /name="plannedDate"[^>]*type="date"/)
-    assert.match(page, /name="plannedTime"[^>]*type="time"/)
-    assert.match(page, /name="customerId"/)
-    assert.match(page, /name="estimatedHours"/)
-    assert.match(page, /Salvesta muudatused/)
-  }
+  assert.match(managerEdit, /JobEditForm/)
+  assert.match(workerEdit, /JobEditForm/)
+  assert.match(form, /name="plannedDate"[^>]*type="date"/)
+  assert.match(form, /name="plannedTime"[^>]*type="time"/)
+  assert.match(form, /name="customerId"/)
+  assert.match(form, /name="estimatedHours"/)
+  assert.match(form, /Salvesta muudatused/)
+})
+
+test('worker shared work plan exposes edit for any editable job', () => {
+  const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
+  assert.match(page, /href=\{`\/operator\/jobs\/\$\{job\.id\}\/edit`\}/)
+  assert.match(page, />Muuda</)
+  assert.match(page, /Hõivatud/)
 })
 
 test('worker job controls still support self-service claim and release', () => {
