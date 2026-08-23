@@ -97,6 +97,13 @@ export async function getWorkerJobs(userId: string) {
   return { freeJobs: free.data ?? [], mineJobs: mine.data ?? [] }
 }
 
+export async function getSharedLiftCalendar() {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('shared_lift_calendar')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getOperatorTodayJobs(operatorId: string) {
   const supabase = await createClient()
   const now = new Date()
