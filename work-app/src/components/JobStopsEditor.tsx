@@ -2,20 +2,20 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { StopPicker } from '@/components/StopPicker'
+import { StopPicker, type StopDraft } from '@/components/StopPicker'
 import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEditor'
 import type { SiteOption } from '@/lib/job-stops'
 import { addStopsAction, reorderStopsAction, updateRouteEndpointsAction } from '@/app/job-stop-actions'
 
 type DraftStop = StopOrderItem & { siteId: string | null }
 
-const toDraft = (site: SiteOption, index: number): DraftStop => ({
-  id: `draft-${crypto.randomUUID()}`,
-  siteId: site.id,
+const toDraft = (draft: StopDraft, index: number): DraftStop => ({
+  id: draft.key,
+  siteId: draft.siteId,
   sequence_no: index + 1,
-  name_snapshot: site.name,
-  address_snapshot: site.address ?? '',
-  description: null,
+  name_snapshot: draft.name,
+  address_snapshot: draft.address,
+  description: draft.description || null,
   status: 'pending',
 })
 
@@ -55,14 +55,12 @@ export function JobStopsEditor({
     description: stop.description ?? '',
   }))), [draftStops])
 
-  function addSelected(selected: SiteOption[]) {
+  function addSelected(selected: StopDraft[]) {
     setError(null)
     if (!jobId) {
       setDraftStops((current) => [
         ...current,
-        ...selected
-          .filter((site) => Boolean(site.address?.trim()))
-          .map((site, index) => toDraft(site, current.length + index)),
+        ...selected.map((draft, index) => toDraft(draft, current.length + index)),
       ])
       setPickerOpen(false)
       return
@@ -71,11 +69,11 @@ export function JobStopsEditor({
     const form = new FormData()
     form.set('jobId', jobId)
     form.set('expectedRevision', String(revision))
-    form.set('stopsJson', JSON.stringify(selected.map((site) => ({
-      siteId: site.id,
-      name: site.name,
-      address: site.address ?? '',
-      description: '',
+    form.set('stopsJson', JSON.stringify(selected.map((draft) => ({
+      siteId: draft.siteId,
+      name: draft.name,
+      address: draft.address,
+      description: draft.description,
     }))))
     startTransition(async () => {
       const result = await addStopsAction(form)
@@ -143,29 +141,18 @@ export function JobStopsEditor({
 
   return <section className="detail-card stack">
     {!jobId && <input type="hidden" name="initialStopsJson" value={initialStopsJson} />}
-    <div>
-      <p className="eyebrow">Marsruut</p>
-      <h2>Peatused <span className="count">{shownStops.length}</span></h2>
-    </div>
-
+    <div><p className="eyebrow">Marsruut</p><h2>Peatused <span className="count">{shownStops.length}</span></h2></div>
     {error && <div className="alert danger">{error}</div>}
 
     <div className="form-grid two">
-      <label>Algus
-        <input value={startAddress} onChange={(event) => setStartAddress(event.target.value)} placeholder="Luige (vaikimisi)" />
-      </label>
-      <label>Lõpp
-        <input value={endAddress} onChange={(event) => setEndAddress(event.target.value)} placeholder="Luige (vaikimisi)" />
-      </label>
+      <label>Algus<input value={startAddress} onChange={(event) => setStartAddress(event.target.value)} placeholder="Luige (vaikimisi)" /></label>
+      <label>Lõpp<input value={endAddress} onChange={(event) => setEndAddress(event.target.value)} placeholder="Luige (vaikimisi)" /></label>
     </div>
     {jobId && <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>}
 
     {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} />}
 
-    <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>
-      {pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}
-    </button>
-
+    <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
     {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
     {isPending && <small className="muted">Salvestan marsruuti…</small>}
   </section>
