@@ -28,21 +28,23 @@ test('new job form exposes separate date and time controls without operator assi
   assert.doesNotMatch(page, /name="operatorId"/)
 })
 
-test('worker landing page offers self-service claim and release', () => {
-  const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
+test('worker job controls still support self-service claim and release', () => {
   const card = readFileSync(resolve(root, 'src/components/OperatorJobCard.tsx'), 'utf8')
-  assert.match(page, /Vabad tööd/)
-  assert.match(page, /Minu tööd/)
   assert.match(card, /VÕTA TÖÖ/)
   assert.match(card, /Vabasta töö/)
 })
 
-test('worker calendar shows shared lift availability and navigation', () => {
-  const page = readFileSync(resolve(root, 'src/app/operator/calendar/page.tsx'), 'utf8')
+test('worker landing page combines shared lift availability and work plan', () => {
+  const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
   const shell = readFileSync(resolve(root, 'src/components/AppShell.tsx'), 'utf8')
-  assert.match(page, /Vabad aknad · 7 päeva/)
+  const oldCalendar = readFileSync(resolve(root, 'src/app/operator/calendar/page.tsx'), 'utf8')
+  assert.match(page, /getSharedLiftCalendar/)
   assert.match(page, /freeCapacityDays/)
-  assert.match(shell, /href="\/operator\/calendar"[^>]*>Kalender</)
+  assert.match(page, /Vabad aknad · 7 päeva/)
+  assert.match(page, /Tööplaan/)
+  assert.match(page, /VÕTA TÖÖ/)
+  assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
+  assert.match(oldCalendar, /redirect\(['"]\/operator['"]\)/)
 })
 
 test('PWA manifest and service worker exist', () => {
