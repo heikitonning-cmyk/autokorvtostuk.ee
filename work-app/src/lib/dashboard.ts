@@ -9,6 +9,13 @@ export interface SummaryJob {
   actual_total: number | null
 }
 
+export interface ManagerJobSection {
+  key: string
+  date: string | null
+  cancelled: boolean
+  jobs: SummaryJob[]
+}
+
 function tallinnDateKey(value: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Tallinn',
@@ -72,6 +79,26 @@ export function allManagerJobs(jobs: SummaryJob[], now = new Date()): SummaryJob
 
     return aRank === 3 || aRank === 4 ? bTime - aTime : aTime - bTime
   })
+}
+
+export function managerJobSections(jobs: SummaryJob[], now = new Date()): ManagerJobSection[] {
+  const ordered = allManagerJobs(jobs, now)
+  const sections: ManagerJobSection[] = []
+
+  for (const job of ordered) {
+    const date = plannedDateKey(job)
+    const cancelled = job.status === 'tuhistatud'
+    const key = cancelled ? `cancelled:${date ?? 'unscheduled'}` : (date ?? 'unscheduled')
+    const last = sections[sections.length - 1]
+
+    if (last?.key === key) {
+      last.jobs.push(job)
+    } else {
+      sections.push({ key, date, cancelled, jobs: [job] })
+    }
+  }
+
+  return sections
 }
 
 export function managerSummary(jobs: SummaryJob[], now = new Date()) {
