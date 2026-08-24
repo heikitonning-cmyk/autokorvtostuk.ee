@@ -2,22 +2,24 @@ import Link from 'next/link'
 import { MetricCard } from '@/components/MetricCard'
 import { JobCard } from '@/components/JobCard'
 import { getManagerJobs } from '@/lib/queries'
-import { freeCapacityDays, jobsWithinDays, managerSummary, upcomingJobs } from '@/lib/dashboard'
+import { allManagerJobs, freeCapacityDays, jobsWithinDays, managerSummary } from '@/lib/dashboard'
 
 function eur(value: number) { return new Intl.NumberFormat('et-EE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value) }
 
-export default async function ManagerPage() {
+export default async function ManagerPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const jobs = await getManagerJobs()
+  const query = await searchParams
   const now = new Date()
   const summary = managerSummary(jobs as any[], now)
   const freeDays = freeCapacityDays(jobs as any[], now)
-  const upcoming = upcomingJobs(jobs as any[], now, 10)
+  const allJobs = allManagerJobs(jobs as any[], now)
   const weekJobs = jobsWithinDays(jobs as any[], 7, now)
   const monthJobs = jobsWithinDays(jobs as any[], 31, now)
   const revenue = (arr: any[]) => arr.reduce((s, j) => s + Number(j.actual_total ?? j.estimated_total ?? 0), 0)
 
   return <div className="page stack-lg">
     <div className="page-title-row"><div><p className="eyebrow">Juhtimispult</p><h1>Mis vajab täna tähelepanu?</h1></div><Link className="button primary" href="/manager/jobs/new">+ Lisa töö</Link></div>
+    {query.deleted && <div className="alert success">Töö kustutatud.</div>}
     <section className="metrics-grid">
       <MetricCard label="Täna" value={eur(summary.todayRevenue)} note={`${summary.todayJobs.length} tööd`} />
       <MetricCard label="7 päeva" value={eur(revenue(weekJobs))} note={`${weekJobs.length} tööd`} />
@@ -32,6 +34,6 @@ export default async function ManagerPage() {
     {summary.newJobs.length > 0 && <section><div className="section-title"><h2>Uued broneeringud</h2></div><div className="job-list">{summary.newJobs.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
     {summary.overdueNotStarted.length > 0 && <section><div className="section-title"><h2>Kontrolli kohe</h2></div><div className="job-list">{summary.overdueNotStarted.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
     <section><div className="section-title"><h2>Tänased tööd</h2><Link href="/manager/calendar">Ava kalender</Link></div><div className="job-list">{summary.todayJobs.length ? summary.todayJobs.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />) : <div className="empty">Tänaseks töid ei ole.</div>}</div></section>
-    {upcoming.length > 0 && <section><div className="section-title"><h2>Tulevased tööd</h2><Link href="/manager/calendar">Ava kalender</Link></div><div className="job-list">{upcoming.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />)}</div></section>}
+    <section><div className="section-title"><h2>Kõik tööd <span className="count">{allJobs.length}</span></h2><Link href="/manager/calendar">Ava kalender</Link></div><div className="job-list">{allJobs.length ? allJobs.map((job: any) => <JobCard key={job.id} job={job} href={`/manager/jobs/${job.id}`} />) : <div className="empty">Töid ei ole.</div>}</div></section>
   </div>
 }
