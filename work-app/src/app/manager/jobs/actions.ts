@@ -180,3 +180,28 @@ export async function cancelJob(formData: FormData) {
   revalidatePath('/operator')
   revalidatePath(`/manager/jobs/${id}`)
 }
+
+export async function deleteJob(formData: FormData) {
+  await requireUser('manager')
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) redirect('/manager')
+
+  const supabase = await createClient()
+  const { data: photos, error: photosError } = await supabase
+    .from('job_photos')
+    .select('storage_path')
+    .eq('job_id', id)
+  if (photosError) redirect(`/manager/jobs/${id}?error=delete-job`)
+
+  const { error } = await supabase.from('jobs').delete().eq('id', id)
+  if (error) redirect(`/manager/jobs/${id}?error=delete-job`)
+
+  const storagePaths = (photos ?? []).map((photo: any) => photo.storage_path).filter(Boolean)
+  if (storagePaths.length) await supabase.storage.from('job-photos').remove(storagePaths)
+
+  revalidatePath('/manager')
+  revalidatePath('/manager/calendar')
+  revalidatePath('/manager/customers')
+  revalidatePath('/operator')
+  redirect('/manager?deleted=1')
+}
