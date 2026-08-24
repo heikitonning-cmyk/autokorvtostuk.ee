@@ -109,3 +109,24 @@ test('manager dashboard renders each job only in the canonical all-jobs list', (
   assert.equal(source.includes('<h2>Kontrolli kohe</h2>'), false)
   assert.equal(source.includes('<h2>Tänased tööd</h2>'), false)
 })
+
+test('manager jobs are grouped into dated sections with unscheduled and cancelled sections', () => {
+  assert.ok('managerJobSections' in dashboardModule, 'managerJobSections must exist')
+  const now = new Date('2026-08-24T09:00:00+03:00')
+  const input = [
+    { id: 'today-1', status: 'uus', start_planned: '2026-08-24T10:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'today-2', status: 'kinnitatud', start_planned: '2026-08-24T12:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'future', status: 'kinnitatud', start_planned: '2026-09-26T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'unscheduled', status: 'uus', start_planned: null, planned_date: null, estimated_total: 0, actual_total: null },
+    { id: 'past', status: 'tehtud', start_planned: '2026-08-23T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'cancelled', status: 'tuhistatud', start_planned: '2026-08-24T15:00:00+03:00', estimated_total: 0, actual_total: null },
+  ] as any[]
+  const sections = (dashboardModule as any).managerJobSections(input, now)
+  assert.deepEqual(sections.map((section: any) => ({ key: section.key, ids: section.jobs.map((job: any) => job.id) })), [
+    { key: '2026-08-24', ids: ['today-1', 'today-2'] },
+    { key: '2026-09-26', ids: ['future'] },
+    { key: 'unscheduled', ids: ['unscheduled'] },
+    { key: '2026-08-23', ids: ['past'] },
+    { key: 'cancelled:2026-08-24', ids: ['cancelled'] },
+  ])
+})
