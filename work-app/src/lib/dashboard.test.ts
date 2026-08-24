@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import * as dashboardModule from './dashboard.ts'
 
 const { managerSummary } = dashboardModule
@@ -85,4 +86,26 @@ test('upcoming manager jobs contain only future confirmed jobs in chronological 
   ] as any[]
   const result = (dashboardModule as any).upcomingJobs(input, now, 10)
   assert.deepEqual(result.map((job: any) => job.id), ['august', 'date-only', 'september'])
+})
+
+test('all manager jobs are ordered today, future, unscheduled, past, cancelled', () => {
+  const now = new Date('2026-08-24T20:00:00+03:00')
+  const input = [
+    { id: 'cancelled', status: 'tuhistatud', start_planned: '2026-08-25T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'past', status: 'tehtud', start_planned: '2026-08-23T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'unscheduled', status: 'uus', start_planned: null, planned_date: null, estimated_total: 0, actual_total: null },
+    { id: 'future', status: 'kinnitatud', start_planned: '2026-08-25T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'today-morning', status: 'kinnitatud', start_planned: '2026-08-24T08:00:00+03:00', estimated_total: 0, actual_total: null },
+    { id: 'today-evening', status: 'uus', start_planned: '2026-08-24T21:00:00+03:00', estimated_total: 0, actual_total: null },
+  ] as any[]
+  const result = (dashboardModule as any).allManagerJobs(input, now)
+  assert.deepEqual(result.map((job: any) => job.id), ['today-morning', 'today-evening', 'future', 'unscheduled', 'past', 'cancelled'])
+})
+
+test('manager dashboard renders each job only in the canonical all-jobs list', () => {
+  const source = readFileSync(new URL('../app/manager/page.tsx', import.meta.url), 'utf8')
+  assert.equal((source.match(/<JobCard/g) ?? []).length, 1)
+  assert.equal(source.includes('<h2>Uued broneeringud</h2>'), false)
+  assert.equal(source.includes('<h2>Kontrolli kohe</h2>'), false)
+  assert.equal(source.includes('<h2>Tänased tööd</h2>'), false)
 })
