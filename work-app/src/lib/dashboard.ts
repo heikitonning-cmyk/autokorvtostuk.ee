@@ -49,22 +49,28 @@ export function upcomingJobs(jobs: SummaryJob[], now = new Date(), limit = 10): 
 }
 
 export function allManagerJobs(jobs: SummaryJob[], now = new Date()): SummaryJob[] {
-  const nowMs = now.getTime()
+  const todayKey = tallinnDateKey(now)
   const rank = (job: SummaryJob) => {
-    if (job.status === 'tuhistatud') return 3
-    const timestamp = plannedTimestamp(job)
-    if (!Number.isFinite(timestamp)) return 0
-    return timestamp >= nowMs ? 1 : 2
+    if (job.status === 'tuhistatud') return 4
+    const dateKey = plannedDateKey(job)
+    if (dateKey === todayKey) return 0
+    if (dateKey && dateKey > todayKey) return 1
+    if (!dateKey) return 2
+    return 3
   }
 
   return [...jobs].sort((a, b) => {
     const aRank = rank(a)
     const bRank = rank(b)
     if (aRank !== bRank) return aRank - bRank
+
     const aTime = plannedTimestamp(a)
     const bTime = plannedTimestamp(b)
-    if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) return 0
-    return aRank === 1 ? aTime - bTime : bTime - aTime
+    if (!Number.isFinite(aTime) && !Number.isFinite(bTime)) return 0
+    if (!Number.isFinite(aTime)) return 1
+    if (!Number.isFinite(bTime)) return -1
+
+    return aRank === 3 || aRank === 4 ? bTime - aTime : aTime - bTime
   })
 }
 
