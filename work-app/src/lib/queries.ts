@@ -50,25 +50,15 @@ export async function getBaseLocation() {
 
 export async function getManagerJobs() {
   const supabase = await createClient()
-  const from = new Date(Date.now() - 35 * 86400000).toISOString()
-  const to = new Date(Date.now() + 35 * 86400000).toISOString()
   const select = '*, customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
-  const [scheduled, unscheduled] = await Promise.all([
-    supabase
-      .from('jobs')
-      .select(select)
-      .gte('start_planned', from)
-      .lte('start_planned', to)
-      .order('start_planned', { ascending: true }),
-    supabase
-      .from('jobs')
-      .select(select)
-      .is('start_planned', null)
-      .order('created_at', { ascending: false }),
-  ])
-  if (scheduled.error) throw scheduled.error
-  if (unscheduled.error) throw unscheduled.error
-  return [...(unscheduled.data ?? []), ...(scheduled.data ?? [])]
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(select)
+    .order('planned_date', { ascending: true, nullsFirst: false })
+    .order('planned_time', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
 }
 
 export async function getCustomerSites() {
