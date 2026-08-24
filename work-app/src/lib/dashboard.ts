@@ -48,6 +48,26 @@ export function upcomingJobs(jobs: SummaryJob[], now = new Date(), limit = 10): 
     .slice(0, Math.max(0, limit))
 }
 
+export function allManagerJobs(jobs: SummaryJob[], now = new Date()): SummaryJob[] {
+  const nowMs = now.getTime()
+  const rank = (job: SummaryJob) => {
+    if (job.status === 'tuhistatud') return 3
+    const timestamp = plannedTimestamp(job)
+    if (!Number.isFinite(timestamp)) return 0
+    return timestamp >= nowMs ? 1 : 2
+  }
+
+  return [...jobs].sort((a, b) => {
+    const aRank = rank(a)
+    const bRank = rank(b)
+    if (aRank !== bRank) return aRank - bRank
+    const aTime = plannedTimestamp(a)
+    const bTime = plannedTimestamp(b)
+    if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) return 0
+    return aRank === 1 ? aTime - bTime : bTime - aTime
+  })
+}
+
 export function managerSummary(jobs: SummaryJob[], now = new Date()) {
   const activeJobs = jobs.filter((job) => job.status !== 'tuhistatud')
   const todayKey = tallinnDateKey(now)
