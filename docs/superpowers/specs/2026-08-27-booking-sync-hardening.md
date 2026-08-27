@@ -1,0 +1,3 @@
+# Booking sync hardening
+
+The hourly Gmail-to-Supabase synchronization should write confirmed website bookings through a narrow, idempotent database function rather than constructing direct inserts. The function validates the AT reference and price/hour bounds, normalizes Tallinn local planned time to timestamptz, sets website bookings to `kinnitatud`, leaves operator assignment empty, and upserts by `(source, external_ref)` so retries never create duplicates. The function is SECURITY DEFINER with a locked search path and is not executable by public, anon, or authenticated API roles; it is intended for trusted administrative synchronization only.

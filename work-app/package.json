@@ -1,0 +1,40 @@
+{
+  "name": "euro-kapital-work-app",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:cf": "opennextjs-cloudflare build",
+    "start": "next start",
+    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:geocode-throttle": "wrangler deploy -c cloudflare/geocode-throttle/wrangler.jsonc",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "typecheck": "tsc --noEmit",
+    "test:core": "node --experimental-strip-types --test src/lib/*.test.ts src/lib/routing/*.test.ts tests/*.test.ts",
+    "test": "npm run test:core"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
+    "@opennextjs/cloudflare": "1.20.2",
+    "@supabase/ssr": "0.12.4",
+    "@supabase/supabase-js": "2.112.3",
+    "next": "16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "7.0.2",
+    "wrangler": "4.125.0"
+  },
+  "type": "module"
+}

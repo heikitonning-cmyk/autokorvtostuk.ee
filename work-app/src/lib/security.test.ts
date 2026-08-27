@@ -1,0 +1,161 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const initPath = resolve(here, '../../supabase/migrations/20260822190000_init.sql')
+const workerPath = resolve(here, '../../supabase/migrations/20260823122000_user_claims_and_invites.sql')
+const sharedCalendarPath = resolve(here, '../../supabase/migrations/20260823140500_shared_lift_calendar.sql')
+const sharedEditPath = resolve(here, '../../supabase/migrations/20260823143000_shared_unfinished_job_editing.sql')
+const customerSitesPath = resolve(here, '../../supabase/migrations/20260823150000_customer_sites_and_neste.sql')
+const customerSiteEditPath = resolve(here, '../../supabase/migrations/20260823151000_customer_site_job_editing.sql')
+const siteBackfillPath = resolve(here, '../../supabase/migrations/20260823153000_backfill_job_sites.sql')
+const multiStopPath = resolve(here, '../../supabase/migrations/20260823160000_multi_stop_job_foundation.sql')
+const stopMutationsPath = resolve(here, '../../supabase/migrations/20260823161000_multi_stop_job_mutations.sql')
+
+test('schema defines all core tables and enables RLS', () => {
+  const sql = readFileSync(initPath, 'utf8')
+  for (const table of ['users', 'customers', 'vehicles', 'work_types', 'settings', 'jobs', 'job_photos', 'job_events']) {
+    assert.match(sql, new RegExp(`create table(?: if not exists)? public\\.${table}`, 'i'))
+    assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, 'i'))
+  }
+})
+
+test('worker migration initially exposes free or own jobs', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /operator can read free or own jobs/i)
+  assert.match(sql, /operator_id\s+is\s+null/i)
+  assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
+  assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
+})
+
+test('shared lift calendar exposes all non-cancelled bookings without widening job updates', () => {
+  const sql = readFileSync(sharedCalendarPath, 'utf8')
+  assert.match(sql, /create or replace function public\.shared_lift_calendar/i)
+  assert.match(sql, /security definer/i)
+  assert.match(sql, /status\s*<>\s*'tuhistatud'/i)
+  assert.match(sql, /private\.current_app_role\(\)\s+not in\s+\('operator',\s*'manager'\)/i)
+  assert.doesNotMatch(sql, /create policy .*update.*all active lift jobs/i)
+})
+
+test('all active users can edit every unfinished non-cancelled job through guarded RPC', () => {
+  const sql = readFileSync(sharedEditPath, 'utf8')
+  assert.match(sql, /create or replace function public\.update_editable_job/i)
+  assert.match(sql, /security definer/i)
+  assert.match(sql, /private\.current_app_role\(\)\s+not in\s+\('operator',\s*'manager'\)/i)
+  assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
+  assert.match(sql, /operator can read all non-cancelled jobs/i)
+  assert.match(sql, /operator can read all customers/i)
+  assert.match(sql, /price_snapshot_json/i)
+  assert.match(sql, /settings/i)
+  assert.doesNotMatch(sql, /set\s+operator_id\s*=/i)
+})
+
+test('customer sites migration adds reusable sites and 59 Neste stations', () => {
+  const sql = readFileSync(customerSitesPath, 'utf8')
+  assert.match(sql, /create table if not exists public\.customer_sites/i)
+  assert.match(sql, /add column if not exists site_id uuid references public\.customer_sites\(id\)/i)
+  assert.match(sql, /customer_sites_customer_external_code_uq/i)
+  assert.match(sql, /execute function private\.set_updated_at\(\)/i)
+  assert.match(sql, /manager can manage customer sites/i)
+  assert.match(sql, /operator can read customer sites/i)
+  assert.match(sql, /operator can add manual customer sites/i)
+  assert.match(sql, /NESTE-001/)
+  assert.match(sql, /NESTE-059/)
+  assert.match(sql, /on conflict \(customer_id, external_code\)/i)
+})
+
+test('customer site migration extends guarded job editing without changing ownership', () => {
+  const sql = readFileSync(customerSiteEditPath, 'utf8')
+  assert.match(sql, /p_site_id\s+uuid/i)
+  assert.match(sql, /site_id\s*=\s*p_site_id/i)
+  assert.match(sql, /customer_sites/i)
+  assert.match(sql, /status\s+not in\s+\('tehtud',\s*'vajab_jareltegevust',\s*'tuhistatud'\)/i)
+  assert.doesNotMatch(sql, /operator_id\s*=\s*p_/i)
+})
+
+test('legacy jobs are safely linked to a matching customer site by object name', () => {
+  const sql = readFileSync(siteBackfillPath, 'utf8')
+  assert.match(sql, /update public\.jobs\s+j/i)
+  assert.match(sql, /from public\.customer_sites\s+s/i)
+  assert.match(sql, /j\.customer_id\s*=\s*s\.customer_id/i)
+  assert.match(sql, /lower\(trim\(j\.object_name\)\)\s*=\s*lower\(trim\(s\.name\)\)/i)
+  assert.match(sql, /site_id\s*=\s*s\.id/i)
+  assert.match(sql, /s\.address/i)
+  assert.match(sql, /j\.site_id\s+is\s+null/i)
+})
+
+test('multi-stop schema supports ordered duplicate site visits and stop photos', () => {
+  const sql = readFileSync(multiStopPath, 'utf8')
+  assert.match(sql, /create table(?: if not exists)? public\.job_stops/i)
+  assert.match(sql, /sequence_no\s+integer\s+not null/i)
+  assert.match(sql, /status\s+text\s+not null\s+default\s+'pending'/i)
+  assert.match(sql, /check\s*\(status\s+in\s*\('pending',\s*'in_progress',\s*'done',\s*'skipped'\)\)/i)
+  assert.match(sql, /add column if not exists route_revision bigint not null default 0/i)
+  assert.match(sql, /add column if not exists job_stop_id uuid/i)
+  assert.match(sql, /unique\s*\(id,\s*job_id\)/i)
+  assert.doesNotMatch(sql, /unique\s*\(job_id,\s*site_id\)/i)
+  assert.match(sql, /where status = 'in_progress'/i)
+  assert.match(sql, /execute function private\.set_updated_at\(\)/i)
+  assert.match(sql, /base_location/i)
+  assert.match(sql, /Luige/i)
+})
+
+test('multi-stop mutations guard stale reorders and operator execution', () => {
+  const sql = readFileSync(stopMutationsPath, 'utf8')
+  assert.match(sql, /create or replace function public\.add_job_stops/i)
+  assert.match(sql, /create or replace function public\.reorder_job_stops/i)
+  assert.match(sql, /route_revision\s*=\s*route_revision\s*\+\s*1/i)
+  assert.match(sql, /route_revision\s*=\s*p_expected_revision/i)
+  assert.match(sql, /create or replace function public\.start_job_stop/i)
+  assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
+  assert.match(sql, /create or replace function public\.complete_job_stop/i)
+  assert.match(sql, /completion_note/i)
+  assert.match(sql, /job_photos/i)
+  assert.match(sql, /create or replace function public\.skip_job_stop/i)
+  assert.match(sql, /insert into public\.job_events/i)
+})
+
+test('worker migration defines atomic claim and guarded release functions', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /create or replace function public\.claim_job/i)
+  assert.match(sql, /operator_id\s+is\s+null/i)
+  assert.match(sql, /returning\s+id/i)
+  assert.match(sql, /create or replace function public\.release_job/i)
+  assert.match(sql, /actual_start\s+is\s+null/i)
+  assert.match(sql, /operator_id\s*=\s*auth\.uid\(\)/i)
+})
+
+test('worker invites are hashed one-time operator invites', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /create table(?: if not exists)? public\.user_invites/i)
+  assert.match(sql, /token_hash\s+text\s+(?:unique\s+)?not null/i)
+  assert.match(sql, /role\s+text\s+not null\s+default\s+'operator'/i)
+  assert.match(sql, /expires_at\s+timestamptz\s+not null/i)
+  assert.match(sql, /used_at\s+timestamptz/i)
+  assert.match(sql, /revoked_at\s+timestamptz/i)
+  assert.match(sql, /create or replace function public\.validate_user_invite/i)
+})
+
+test('invite signup trigger always creates operator profile', () => {
+  const sql = readFileSync(workerPath, 'utf8')
+  assert.match(sql, /app_registration/i)
+  assert.match(sql, /worker_invite/i)
+  assert.match(sql, /insert into public\.users/i)
+  assert.match(sql, /'operator'/i)
+  assert.match(sql, /create trigger .*auth.*user|create trigger .*worker.*invite/i)
+})
+
+test('job photos bucket is private and policies bind photos to assigned jobs', () => {
+  const sql = readFileSync(initPath, 'utf8')
+  assert.match(sql, /'job-photos'\s*,\s*'job-photos'\s*,\s*false/i)
+  assert.match(sql, /operator can manage assigned job photos/i)
+})
+
+test('audit trigger exists for jobs and settings', () => {
+  const sql = readFileSync(initPath, 'utf8')
+  assert.match(sql, /create trigger jobs_audit_trigger/i)
+  assert.match(sql, /create trigger settings_audit_trigger/i)
+})
