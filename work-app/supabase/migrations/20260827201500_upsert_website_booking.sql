@@ -68,7 +68,7 @@ begin
   on conflict (source, external_ref)
     where source is not null and external_ref is not null
   do update set
-    status = 'kinnitatud',
+    status = case when public.jobs.status in ('uus', 'kinnitatud') then 'kinnitatud' else public.jobs.status end,
     planned_date = excluded.planned_date,
     planned_time = excluded.planned_time,
     start_planned = excluded.start_planned,
