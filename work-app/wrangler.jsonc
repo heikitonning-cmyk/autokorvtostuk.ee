@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "autokorvtostuk-app",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GEOCODE_THROTTLE",
+        "class_name": "GeocodeThrottle",
+        "script_name": "autokorvtostuk-geocode-throttle"
+      }
+    ]
+  },
+  "vars": {
+    "OSRM_BASE_URL": "https://router.project-osrm.org"
+  }
+}
