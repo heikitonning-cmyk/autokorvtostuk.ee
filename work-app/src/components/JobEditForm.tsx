@@ -1,3 +1,4 @@
+import { JobPricingFields } from '@/components/JobPricingFields'
 import Link from 'next/link'
 import { updateJob } from '@/app/job-edit-actions'
 import type { PriceSettings } from '@/lib/domain'
@@ -70,10 +71,7 @@ export function JobEditForm({
       <label>Töö kirjeldus<textarea name="description" rows={3} defaultValue={job.description ?? ''} placeholder="Mida tuleb teha?" /></label>
       <label>Ligipääs / oluline kasutajale<textarea name="accessNotes" rows={2} defaultValue={job.access_notes ?? ''} placeholder="Värav, kontakt, parkimine, ohtlik koht..." /></label>
       <div className="divider"><span>Hinna eelarve</span></div>
-      <div className="form-grid three"><label>Tõstuki tunnid<input name="estimatedHours" type="number" min="0" step="0.5" defaultValue={job.estimated_hours ?? 0} /></label><label>Sõidutunnid<input name="estimatedDriveHours" type="number" min="0" step="0.5" defaultValue={job.estimated_drive_hours ?? 0} /></label><label>Km<input name="estimatedKm" type="number" min="0" step="1" defaultValue={job.estimated_km ?? 0} /></label></div>
-      <div className="form-grid two"><label>Lisamehe tunnid<input name="estimatedHelperHours" type="number" min="0" step="0.5" defaultValue={job.estimated_helper_hours ?? 0} /></label><label>Käsikorrektsioon €<input name="manualAdjustment" type="number" step="1" defaultValue={job.manual_adjustment ?? 0} /></label></div>
-      <label>Korrektsiooni põhjus<input name="adjustmentReason" defaultValue={job.manual_adjustment_reason ?? ''} /></label>
-      <div className="price-hint">Arvutus: tõstuk {pricing.hourlyRate} €/h · miinimum {pricing.minimumOrder} € · km {pricing.kmRate} €/km · lisamees {pricing.helperHourlyRate} €/h{job.price_snapshot_json ? ' · selle töö kinnitamisel lukustatud hinnad' : ''}</div>
+      <JobPricingFields job={job} pricing={pricing} />
       <div className="action-grid two"><Link className="button secondary wide" href={cancelHref}>Tagasi</Link><button className="button primary wide xl" type="submit">Salvesta muudatused</button></div>
     </form>
   </div>

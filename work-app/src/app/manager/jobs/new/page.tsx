@@ -1,3 +1,4 @@
+import { JobPricingFields } from '@/components/JobPricingFields'
 import { createJob } from '../actions'
 import { getPricingSettings, getReferenceData } from '@/lib/queries'
 import { JobLocationFields } from '@/components/JobLocationFields'
@@ -18,10 +19,7 @@ export default async function NewJobPage({ searchParams }: { searchParams: Promi
       <label>Töö kirjeldus<textarea name="description" rows={3} placeholder="Mida tuleb teha?" /></label>
       <label>Ligipääs / oluline kasutajale<textarea name="accessNotes" rows={2} placeholder="Värav, kontakt, parkimine, ohtlik koht..." /></label>
       <div className="divider"><span>Hinna eelarve</span></div>
-      <div className="form-grid three"><label>Tõstuki tunnid<input name="estimatedHours" type="number" min="0" step="0.5" defaultValue="2" /></label><label>Sõidutunnid<input name="estimatedDriveHours" type="number" min="0" step="0.5" defaultValue="0" /></label><label>Km<input name="estimatedKm" type="number" min="0" step="1" defaultValue="0" /></label></div>
-      <div className="form-grid two"><label>Lisamehe tunnid<input name="estimatedHelperHours" type="number" min="0" step="0.5" defaultValue="0" /></label><label>Käsikorrektsioon €<input name="manualAdjustment" type="number" step="1" defaultValue="0" /></label></div>
-      <label>Korrektsiooni põhjus<input name="adjustmentReason" /></label>
-      <div className="price-hint">Hetkehinnad: tõstuk {pricing.hourlyRate} €/h · miinimum {pricing.minimumOrder} € · km {pricing.kmRate} €/km · lisamees {pricing.helperHourlyRate} €/h</div>
+      <JobPricingFields pricing={pricing} />
       <button className="button primary wide xl" type="submit">Salvesta töö</button>
     </form>
   </div>

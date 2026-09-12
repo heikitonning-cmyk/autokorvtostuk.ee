@@ -1,6 +1,7 @@
+import { getJobPricing } from '@/lib/pricing'
 import { notFound, redirect } from 'next/navigation'
 import { requireView } from '@/lib/session'
-import { defaultPricing, getEditableReferenceData, getOperatorJob, getPricingSettings } from '@/lib/queries'
+import { getEditableReferenceData, getOperatorJob, getPricingSettings } from '@/lib/queries'
 import { JobEditForm } from '@/components/JobEditForm'
 
 const locked = new Set(['completed', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'])
@@ -17,7 +18,7 @@ export default async function WorkerJobEditPage({ params, searchParams }: {
   if (locked.has(job.status)) redirect(`/operator/jobs/${id}`)
 
   const [refs, currentPricing] = await Promise.all([getEditableReferenceData(), getPricingSettings()])
-  const pricing = { ...defaultPricing, ...currentPricing, ...(job.price_snapshot_json ?? {}) }
+  const pricing = getJobPricing(job, currentPricing)
   const errorText = Array.isArray(query.error) ? query.error[0] : query.error
 
   return <JobEditForm job={job} refs={refs} pricing={pricing} view="worker" errorText={errorText} cancelHref={`/operator/jobs/${id}`} />

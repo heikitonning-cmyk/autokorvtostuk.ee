@@ -8,6 +8,7 @@ export const defaultPricing: PriceSettings = {
   driveHourlyRate: 45,
   kmRate: 1,
   helperHourlyRate: 35,
+  operatorWorkHourlyRate: 15,
 }
 
 export const defaultBaseLocation = {

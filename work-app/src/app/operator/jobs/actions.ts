@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { requireView } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { canTransition, completionStatus } from '@/lib/status'
-import { calculatePrice } from '@/lib/pricing'
+import { calculatePrice, getJobPricing } from '@/lib/pricing'
 import { getPricingSettings } from '@/lib/queries'
 
 function stopErrorCode(message: string | undefined) {
@@ -107,7 +107,9 @@ export async function finishJob(formData: FormData) {
   const status = completionStatus({ actualKm: validActualKm, billingConfirmed, photoCount: count ?? 0 })
   const end = new Date()
   const hours = Math.max(0, (end.getTime() - new Date(job.actual_start).getTime()) / 3600000)
-  const snapshot = job.price_snapshot_json ?? await getPricingSettings()
+  const snapshot = getJobPricing(job, await getPricingSettings())
+  const operatorWorkHours = job.operator_does_work ? Number(formData.get('operatorWorkHours')) : 0
+  if (job.operator_does_work && (formData.get('operatorWorkHours') == null || String(formData.get('operatorWorkHours')).trim() === '' || !Number.isFinite(operatorWorkHours) || operatorWorkHours < 0)) redirect(`/operator/jobs/${id}/finish?error=operator-hours`)
   const helperHours = Number(formData.get('helperHours') ?? 0) || 0
   const price = calculatePrice({
     liftHours: hours,
@@ -115,6 +117,8 @@ export async function finishJob(formData: FormData) {
     km: validActualKm ?? Number(job.estimated_km ?? 0),
     helperHours,
     adjustment: Number(job.manual_adjustment ?? 0),
+    operatorDoesWork: job.operator_does_work === true,
+    operatorWorkHours,
   }, snapshot)
   const { error } = await supabase.from('jobs').update({
     status,
@@ -127,6 +131,8 @@ export async function finishJob(formData: FormData) {
     billing_confirmed: billingConfirmed,
     customer_confirmation: customerConfirmation,
     actual_total: price.total,
+    actual_operator_work_hours: operatorWorkHours,
+    actual_operator_work_surcharge: price.operatorWork,
     invoice_status: billingConfirmed ? 'valmis_arveks' : 'puudub',
   }).eq('id', id).eq('operator_id', user.id)
   if (error) redirect(`/operator/jobs/${id}/finish?error=save`)

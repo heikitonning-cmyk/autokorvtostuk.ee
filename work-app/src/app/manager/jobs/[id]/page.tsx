@@ -1,3 +1,4 @@
+import { OperatorWorkSummary } from '@/components/OperatorWorkSummary'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCustomerSites, getJobDetail } from '@/lib/queries'
@@ -73,7 +74,10 @@ export default async function JobPage({ params, searchParams }: { params: Promis
       routeEndAddress={job.route_end_address ?? ''}
     />}
 
-    <section className="detail-card"><h2>Aeg ja inimesed</h2><dl><div><dt>Plaan</dt><dd>{planned}</dd></div><div><dt>Klient</dt><dd>{job.customer?.name || 'Määramata'}</dd></div><div><dt>Kontakt</dt><dd>{job.customer?.phone || job.customer?.email || '—'}</dd></div><div><dt>Operaator</dt><dd>{job.operator?.name || 'Määramata'}</dd></div><div><dt>Tööliik</dt><dd>{job.work_type?.name || 'Määramata'}</dd></div></dl></section>
+    <section className="detail-card"><h2>Aeg ja inimesed</h2><dl><div><dt>Plaan</dt><dd>{planned}</dd></div><div><dt>Klient</dt><dd>{job.customer?.name || job.website_booking_details?.customer_name || 'Määramata'}</dd></div><div><dt>Kontakt</dt><dd>{job.customer?.phone || job.customer?.email || job.website_booking_details?.phone || job.website_booking_details?.email || '—'}</dd></div><div><dt>Operaator</dt><dd>{job.operator?.name || 'Määramata'}</dd></div><div><dt>Tööliik</dt><dd>{job.work_type?.name || 'Määramata'}</dd></div></dl></section>
+    {job.source === 'website' && !job.customer_id && job.website_booking_details?.customer_name && <div className="alert">Broneeringu klient pole veel kliendikaardiga seotud. Kontrolli andmeid ja vali klient töö muutmisel.</div>}
+    <OperatorWorkSummary job={job} />
+
     <section className="detail-card"><h2>Töö</h2><p>{job.description || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Ligipääs</strong><p>{job.access_notes}</p></div>}</section>
     <section className="detail-card"><h2>Hind</h2><dl><div><dt>Eeldus</dt><dd>{money(job.estimated_total)}</dd></div><div><dt>Tõstuk</dt><dd>{job.estimated_hours} h</dd></div><div><dt>Sõit</dt><dd>{job.estimated_drive_hours} h / {job.estimated_km} km</dd></div><div><dt>Lisamees</dt><dd>{job.estimated_helper_hours} h</dd></div><div><dt>Tegelik</dt><dd>{money(job.actual_total)}</dd></div></dl>{job.price_snapshot_json && <p className="snapshot">Hind lukustatud töö kinnitamisel: {job.price_snapshot_json.hourlyRate} €/h, km {job.price_snapshot_json.kmRate} €.</p>}</section>
     <section className="detail-card"><h2>Tegelik töö</h2><dl><div><dt>Algus</dt><dd>{dt(job.actual_start)}</dd></div><div><dt>Lõpp</dt><dd>{dt(job.completed_at ?? job.actual_end)}</dd></div><div><dt>Km</dt><dd>{job.actual_km ?? '—'}</dd></div><div><dt>Lisatöö</dt><dd>{job.extra_work_description || '—'}</dd></div><div><dt>Arve</dt><dd>{job.invoice_status}</dd></div></dl></section>
