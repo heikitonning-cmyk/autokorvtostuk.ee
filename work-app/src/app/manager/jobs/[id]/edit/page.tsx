@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/session'
 import { defaultPricing, getEditableReferenceData, getJobDetail, getPricingSettings } from '@/lib/queries'
 import { JobEditForm } from '@/components/JobEditForm'
 
-const locked = new Set(['tehtud', 'vajab_jareltegevust', 'tuhistatud'])
+const locked = new Set(['completed', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'])
 
 export default async function ManagerJobEditPage({ params, searchParams }: {
   params: Promise<{ id: string }>

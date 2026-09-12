@@ -22,6 +22,27 @@ Mobiilikeskne PWA Euro Kapital OÜ autokorvtõstuki tööde juhtimiseks. Avalik 
 
 ## Supabase
 
+### Töö märkimine tehtuks
+
+Töö detaili **Märgi tehtuks** dialoog salvestab valitud Eesti aja väljale
+`completed_at` ja seab staatuseks `completed`. See kasutab eraldi
+`mark_job_completed` RPC-d; olemasolev **LÕPETA TÖÖ** ja selle arvestus ei muutu.
+RPC muudab ainult neid kahte välja. Olemasolevad triggerid uuendavad `updated_at`
+ja lisavad auditikirje. Korduv päring ei muuda esimest lõpetamise aega.
+
+Lõpetada saab aktiivne juht või tööle määratud aktiivne operaator. Andmebaas
+rakendab RLS-i ning blokeerib vanast vormist tuleva katse `completed` staatust
+üle kirjutada. Kalendris säilib planeeritud aeg; aruandluses kasutatakse valitud
+tegelikku lõpetamisaega. `tehtud` ja `vajab_jareltegevust` jäävad ühilduvaks.
+Aktiivsete tööde kõrval on **Ajalugu**. Hilinenud tähendab möödunud tähtaega
+ja lõpetamata tööd; kuupäev ilma kellaajata aegub Eesti päeva lõpus.
+
+Migratsioonid: `20260912094448_mark_job_completed.sql` ja
+`20260912095127_preserve_completed_job_status.sql`. Olemasoleva andmebaasi ridu
+ei teisendata ega kustutata. Tehingupõhine kontroll
+`supabase/tests/mark_job_completed.sql` testib õigusi ja andmete säilimist ning
+võtab kõik testandmed tagasi `ROLLBACK`-iga.
+
 1. Loo Supabase projekt.
 2. Käivita SQL Editoris migratsioonid `supabase/migrations/` kaustast kronoloogilises järjekorras.
 3. Käivita `supabase/seed.sql`.

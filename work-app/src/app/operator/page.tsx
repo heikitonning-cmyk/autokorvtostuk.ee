@@ -4,6 +4,7 @@ import { getSharedLiftCalendar } from '@/lib/queries'
 import { freeCapacityDays } from '@/lib/dashboard'
 import { formatPlannedTime } from '@/lib/jobs'
 import { StatusBadge } from '@/components/StatusBadge'
+import { isActiveJob, isCompletedJob } from '@/lib/status'
 import type { JobStatus } from '@/lib/domain'
 import { claimJob, releaseJob } from './actions'
 
@@ -28,7 +29,7 @@ function longDate(date: string) {
 function PlanJobCard({ job }: { job: any }) {
   const name = job.object_name || job.customer_name || 'Töö'
   const workType = job.work_type_name || 'Tööliik määramata'
-  const editable = !['tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
+  const editable = isActiveJob(job)
   const canRelease = job.is_mine && editable && job.status !== 'toob'
 
   return <div className="job-card">
@@ -52,18 +53,18 @@ function PlanJobCard({ job }: { job: any }) {
         <input type="hidden" name="id" value={job.id} />
         <button className="button secondary wide" type="submit">Vabasta töö</button>
       </form>}
-    </div> : editable ? <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link></div> : null}
+    </div> : editable ? <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link></div> : <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}`}>Ava töö</Link></div>}
   </div>
 }
 
 export default async function OperatorPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireView('worker')
   const [jobs, params] = await Promise.all([
-    getSharedLiftCalendar(),
+    getSharedLiftCalendar(true),
     searchParams,
   ])
   const errorText = Array.isArray(params.error) ? params.error[0] : params.error
-  const today = tallinnDateKey()
+  const view = params.view === 'history' ? 'history' : params.view === 'calendar' ? 'calendar' : 'active'
 
   const freeDays = freeCapacityDays(jobs.map((job: any) => ({
     start_planned: job.start_planned,
@@ -73,7 +74,7 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
 
   const visibleJobs = jobs.filter((job: any) => {
     const date = jobDateKey(job)
-    return job.status === 'toob' || Boolean(date && date >= today)
+    return Boolean(date) && (view === 'calendar' || (view === 'history' ? isCompletedJob(job) : isActiveJob(job)))
   })
 
   const groups = new Map<string, any[]>()
@@ -82,7 +83,8 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     if (date) groups.set(date, [...(groups.get(date) ?? []), job])
   }
 
-  const unscheduled = jobs.filter((job: any) => !job.start_planned && !job.planned_date)
+  const unscheduled = jobs.filter((job: any) => !job.start_planned && !job.planned_date &&
+    (view === 'calendar' || (view === 'history' ? isCompletedJob(job) : isActiveJob(job))))
 
   return <div className="page stack-lg operator-page">
     <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Ühe tõstuki ühine tööplaan ja vabad ajad.</p></div>
@@ -100,7 +102,8 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     </section>
 
     <section>
-      <div className="section-title"><h2>Tööplaan</h2></div>
+      <div className="section-title"><h2>{view === 'history' ? 'Tööde ajalugu' : view === 'calendar' ? 'Kalender' : 'Tööplaan'}</h2></div>
+      <div className="segmented"><Link className={view === 'active' ? 'active' : ''} href="/operator">Aktiivsed</Link><Link className={view === 'history' ? 'active' : ''} href="?view=history">Ajalugu</Link><Link className={view === 'calendar' ? 'active' : ''} href="?view=calendar">Kalender</Link></div>
       <div className="calendar-list">{[...groups.entries()].map(([date, dayJobs]) => <section key={date}>
         <h2>{longDate(date)}</h2>
         <div className="job-list">{dayJobs.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>

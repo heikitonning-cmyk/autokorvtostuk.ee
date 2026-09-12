@@ -128,7 +128,7 @@ test('worker landing page combines shared lift availability and work plan', () =
   assert.match(page, /Tööplaan/)
   assert.match(page, /VÕTA TÖÖ/)
   assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
-  assert.match(oldCalendar, /redirect\(['"]\/operator['"]\)/)
+  assert.match(oldCalendar, /redirect\(['"]\/operator\?view=calendar['"]\)/)
 })
 
 test('multi-stop editor supports search, many selected sites and mobile reorder', () => {

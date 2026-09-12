@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { PriceSettings } from '@/lib/domain'
+import { readAllPages } from '@/lib/pagination'
 
 export const defaultPricing: PriceSettings = {
   hourlyRate: 45,
@@ -51,14 +52,14 @@ export async function getBaseLocation() {
 export async function getManagerJobs() {
   const supabase = await createClient()
   const select = '*, customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
-  const { data, error } = await supabase
+  return readAllPages((from, to) => supabase
     .from('jobs')
     .select(select)
     .order('planned_date', { ascending: true, nullsFirst: false })
     .order('planned_time', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
-  if (error) throw error
-  return data ?? []
+    .order('id', { ascending: true })
+    .range(from, to))
 }
 
 export async function getCustomerSites() {
@@ -160,8 +161,23 @@ export async function getWorkerJobs(userId: string) {
   return { freeJobs: free.data ?? [], mineJobs: mine.data ?? [] }
 }
 
-export async function getSharedLiftCalendar() {
+export async function getSharedLiftCalendar(includeHistory = false) {
   const supabase = await createClient()
+  if (includeHistory) {
+    const { data: claims, error: authError } = await supabase.auth.getClaims()
+    if (authError || !claims?.claims?.sub) throw new Error('Sisselogimine on vajalik.')
+    const data = await readAllPages((from, to) => supabase.from('jobs')
+      .select('id,object_name,address,description,status,planned_date,planned_time,planned_end_time,start_planned,end_planned,completed_at,operator_id,customer:customers(name),work_type:work_types(name)')
+      .neq('status', 'tuhistatud')
+      .order('planned_date', { ascending: true, nullsFirst: false })
+      .order('planned_time', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true })
+      .range(from, to))
+    return data.map((job: any) => ({ ...job,
+      customer_name: job.customer?.name ?? null, work_type_name: job.work_type?.name ?? null,
+      is_free: job.operator_id === null, is_mine: job.operator_id === claims.claims.sub,
+    }))
+  }
   const { data, error } = await supabase.rpc('shared_lift_calendar')
   if (error) throw error
   return data ?? []
