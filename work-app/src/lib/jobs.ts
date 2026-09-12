@@ -75,6 +75,29 @@ export function combinePlannedDateTime(
   return optionalIsoDateTime(`${date}T${time}`)
 }
 
+export function completionDefaults(now = new Date()): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Tallinn', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now)
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return { date: `${values.year}-${values.month}-${values.day}`, time: `${values.hour}:${values.minute}` }
+}
+
+export function parseCompletionTime(date: string, time: string, now = new Date()): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null
+  const iso = combinePlannedDateTime(date, time)
+  if (!iso) return null
+  // During autumn's repeated hour, today's default can be its first occurrence.
+  for (const offset of [0, -3600000]) {
+    const candidate = new Date(new Date(iso).getTime() + offset)
+    if (candidate.getTime() > now.getTime()) continue
+    const roundTrip = completionDefaults(candidate)
+    if (roundTrip.date === date && roundTrip.time === time) return candidate.toISOString()
+  }
+  return null
+}
+
 export function formatPlannedTime(value: string | null | undefined, plannedTime?: string | null): string {
   if (value) {
     const date = new Date(value)

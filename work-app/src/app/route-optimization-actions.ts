@@ -61,7 +61,7 @@ export async function proposeRouteOptimization(input: {
     .select('id,status,route_revision,route_start_site_id,route_start_address,route_end_site_id,route_end_address')
     .eq('id', input.jobId)
     .single()
-  if (jobError || !job || ['tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)) {
+  if (jobError || !job || ['completed', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)) {
     return { ok: false, error: 'routing-failed' }
   }
 

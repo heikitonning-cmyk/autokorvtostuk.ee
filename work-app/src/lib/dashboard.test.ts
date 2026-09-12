@@ -15,7 +15,7 @@ const jobs = [
 test('manager summary identifies attention items', () => {
   const result = managerSummary([...jobs], new Date('2026-08-22T10:30:00+03:00'))
   assert.equal(result.newJobs.length, 1)
-  assert.equal(result.overdueNotStarted.length, 1)
+  assert.equal(result.overdueNotStarted.length, 2)
   assert.equal(result.followUp.length, 1)
 })
 

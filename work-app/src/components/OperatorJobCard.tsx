@@ -7,7 +7,7 @@ import { claimJob, releaseJob } from '@/app/operator/actions'
 export function OperatorJobCard({ job, hero = false, mode = 'mine' }: { job: any; hero?: boolean; mode?: 'free' | 'mine' }) {
   const schedule = formatPlannedSchedule(job.start_planned, job.planned_date, job.planned_time, job.planned_end_time)
   const waze = job.address ? `https://www.waze.com/ul?q=${encodeURIComponent(job.address)}&navigate=yes` : null
-  const canRelease = mode === 'mine' && !job.actual_start && !['toob', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
+  const canRelease = mode === 'mine' && !job.actual_start && !['toob', 'completed', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'].includes(job.status)
 
   return (
     <section className={hero ? 'operator-card operator-hero' : 'operator-card'}>

@@ -12,8 +12,10 @@ import { saveWorkNote, startJob } from '../actions'
 import type { JobStatus } from '@/lib/domain'
 import { formatPlannedSchedule } from '@/lib/jobs'
 import { canFinishStops, nextPendingStop } from '@/lib/job-stops'
+import { canMarkJobCompleted, isCompletedJob } from '@/lib/status'
+import { MarkJobCompleted } from '@/components/MarkJobCompleted'
 
-const locked = new Set(['tehtud', 'vajab_jareltegevust', 'tuhistatud'])
+const locked = new Set(['completed', 'tehtud', 'vajab_jareltegevust', 'tuhistatud'])
 
 const stopErrorText: Record<string, string> = {
   'note-required': 'Peatuse lõpetamiseks või vahele jätmiseks lisa kohustuslik märkus.',
@@ -57,6 +59,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
   return <div className="page narrow stack-lg operator-job">
     <div className="page-title-row"><div><p className="eyebrow">Töö</p><h1>{job.object_name || job.customer?.name || 'Töö'}</h1><p className="muted">{planned}</p></div><div className="stack"><StatusBadge status={job.status as JobStatus} />{editable && <Link className="button secondary" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>}</div></div>
     {query.saved && <div className="alert success">Muudatused salvestatud.</div>}
+    {query.completed && <div className="alert success">Töö märgitud tehtuks.</div>}
     {errorMessage && <div className="alert danger">{errorMessage}</div>}
     {!isMine && job.operator_id && <div className="alert">Töö on teise kasutaja võetud. Planeerimisandmeid saad siiski muuta.</div>}
 
@@ -69,7 +72,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
     {isMine && ['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
 
     {hasStops && currentStop && <ActiveStopCard jobId={job.id} stop={currentStop} canOperate={isMine && job.status === 'toob'} />}
-    {hasStops && !currentStop && stopsResolved && <section className="detail-card important"><h2>Kõik peatused on lahendatud</h2><p>Võid tööpäeva lõpetada.</p></section>}
+    {editable && hasStops && !currentStop && stopsResolved && <section className="detail-card important"><h2>Kõik peatused on lahendatud</h2><p>Võid tööpäeva lõpetada.</p></section>}
 
     {editable && hasStops && pendingCount >= 2 && routeHasProgress && <RouteOptimizationPanel jobId={job.id} mode="remaining" routeRevision={job.route_revision ?? 0} />}
 
@@ -91,6 +94,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
 
     {isMine && job.status === 'toob' && (!hasStops || stopsResolved) && <Link className="button finish wide giant" href={`/operator/jobs/${job.id}/finish`}>LÕPETA TÖÖ</Link>}
 
-    {['tehtud','vajab_jareltegevust'].includes(job.status) && <section className="detail-card"><h2>Töö on lõpetatud</h2><p>Tegelik läbisõit: <strong>{job.actual_km ?? 'puudub'} km</strong></p><p>Fotod: <strong>{job.job_photos?.length ?? 0}</strong></p><Link className="button secondary wide" href="/operator">Tagasi tööplaani</Link></section>}
+    {isCompletedJob(job) && <section className="detail-card"><h2>Töö on lõpetatud</h2>{(job.completed_at ?? job.actual_end) && <p>Lõpetatud: <strong>{new Intl.DateTimeFormat('et-EE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Tallinn' }).format(new Date(job.completed_at ?? job.actual_end))}</strong></p>}<p>Tegelik läbisõit: <strong>{job.actual_km ?? 'puudub'} km</strong></p><p>Fotod: <strong>{job.job_photos?.length ?? 0}</strong></p><Link className="button secondary wide" href="/operator">Tagasi tööplaani</Link></section>}
+    {canMarkJobCompleted(user, job) && <MarkJobCompleted jobId={job.id} view="operator" />}
   </div>
 }

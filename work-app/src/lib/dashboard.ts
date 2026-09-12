@@ -1,10 +1,17 @@
 import type { JobStatus } from './domain.ts'
+import { isActiveJob, isCompletedJob } from './status.ts'
+import { combinePlannedDateTime } from './jobs.ts'
 
 export interface SummaryJob {
   id: string
   status: JobStatus
   start_planned: string | null
   planned_date?: string | null
+  planned_time?: string | null
+  planned_end_time?: string | null
+  end_planned?: string | null
+  completed_at?: string | null
+  actual_end?: string | null
   estimated_total: number | null
   actual_total: number | null
 }
@@ -34,11 +41,26 @@ function plannedDateKey(job: Pick<SummaryJob, 'start_planned' | 'planned_date'>)
   return job.planned_date ?? null
 }
 
+function reportingTime(job: SummaryJob): number {
+  const ended = isCompletedJob(job) ? job.completed_at ?? job.actual_end : null
+  return ended ? new Date(ended).getTime() : plannedTimestamp(job)
+}
+
+export function isOverdueJob(job: SummaryJob, now = new Date()): boolean {
+  if (!isActiveJob(job)) return false
+  const date = plannedDateKey(job)
+  const deadline = job.end_planned ?? (date && job.planned_end_time
+    ? combinePlannedDateTime(date, job.planned_end_time)
+    : job.start_planned ?? (date && job.planned_time ? combinePlannedDateTime(date, job.planned_time) : null))
+  if (deadline) return new Date(deadline).getTime() < now.getTime()
+  return Boolean(date && date < tallinnDateKey(now))
+}
+
 export function jobsWithinDays(jobs: SummaryJob[], days: number, now = new Date()): SummaryJob[] {
   const nowMs = now.getTime()
   return jobs.filter((job) => {
     if (job.status === 'tuhistatud') return false
-    const timestamp = plannedTimestamp(job)
+    const timestamp = reportingTime(job)
     return Number.isFinite(timestamp) && Math.abs(timestamp - nowMs) <= days * 86400000
   })
 }
@@ -104,15 +126,12 @@ export function managerJobSections(jobs: SummaryJob[], now = new Date()): Manage
 export function managerSummary(jobs: SummaryJob[], now = new Date()) {
   const activeJobs = jobs.filter((job) => job.status !== 'tuhistatud')
   const todayKey = tallinnDateKey(now)
-  const todayJobs = activeJobs.filter((job) => job.start_planned
-    ? tallinnDateKey(new Date(job.start_planned)) === todayKey
-    : job.planned_date === todayKey)
+  const todayJobs = activeJobs.filter((job) => {
+    const time = reportingTime(job)
+    return Number.isFinite(time) && tallinnDateKey(new Date(time)) === todayKey
+  })
   const newJobs = activeJobs.filter((job) => job.status === 'uus')
-  const overdueNotStarted = activeJobs.filter((job) =>
-    Boolean(job.start_planned) &&
-    (job.status === 'kinnitatud' || job.status === 'teel') &&
-    new Date(job.start_planned as string).getTime() < now.getTime()
-  )
+  const overdueNotStarted = activeJobs.filter((job) => isOverdueJob(job, now))
   const followUp = activeJobs.filter((job) => job.status === 'vajab_jareltegevust')
   const todayRevenue = todayJobs.reduce((sum, job) => sum + Number(job.actual_total ?? job.estimated_total ?? 0), 0)
 
@@ -132,7 +151,7 @@ export function freeCapacityDays(
 
   return days.map((date) => {
     const bookedHours = jobs
-      .filter((job) => job.status !== 'tuhistatud' && Boolean(job.start_planned) && tallinnDateKey(new Date(job.start_planned as string)) === date)
+      .filter((job) => isActiveJob(job) && Boolean(job.start_planned) && tallinnDateKey(new Date(job.start_planned as string)) === date)
       .reduce((sum, job) => {
         const start = new Date(job.start_planned as string).getTime()
         const end = job.end_planned ? new Date(job.end_planned).getTime() : start + 2 * 3600000

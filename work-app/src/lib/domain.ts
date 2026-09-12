@@ -1,5 +1,5 @@
 export type UserRole = 'manager' | 'operator'
-export type JobStatus = 'uus' | 'kinnitatud' | 'teel' | 'toob' | 'tehtud' | 'vajab_jareltegevust' | 'tuhistatud'
+export type JobStatus = 'uus' | 'kinnitatud' | 'teel' | 'toob' | 'tehtud' | 'completed' | 'vajab_jareltegevust' | 'tuhistatud'
 export type JobStopStatus = 'pending' | 'in_progress' | 'done' | 'skipped'
 export type InvoiceStatus = 'puudub' | 'valmis_arveks' | 'arveldatud'
 
@@ -97,6 +97,7 @@ export interface Job {
   actualStart?: string | null
   actualEnd?: string | null
   actualKm?: number | null
+  completedAt?: string | null
   helperUsed: boolean
   helperHours?: number | null
   extraWorkDescription?: string | null
