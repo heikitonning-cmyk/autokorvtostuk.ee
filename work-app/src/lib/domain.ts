@@ -37,6 +37,7 @@ export interface PriceSettings {
   driveHourlyRate: number
   kmRate: number
   helperHourlyRate: number
+  operatorWorkHourlyRate?: number
 }
 
 export interface PriceSnapshot extends PriceSettings {
@@ -49,6 +50,8 @@ export interface PriceInput {
   km: number
   helperHours: number
   adjustment: number
+  operatorDoesWork?: boolean
+  operatorWorkHours?: number
 }
 
 export interface PriceBreakdown {
@@ -56,6 +59,7 @@ export interface PriceBreakdown {
   drive: number
   distance: number
   helper: number
+  operatorWork: number
   adjustment: number
   subtotal: number
   total: number

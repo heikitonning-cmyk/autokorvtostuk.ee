@@ -20,6 +20,7 @@ export default async function FinishPage({ params, searchParams }: { params: Pro
       <input type="hidden" name="id" value={job.id} />
       <div className="completion-photo-status"><span>Fotod</span><strong>{job.job_photos?.length ?? 0}</strong><small>{job.job_photos?.length ? 'Olemas' : 'Puuduvad — töö läheb järeltegevusse'}</small></div>
       <label>Tegelik km<input name="actualKm" inputMode="decimal" type="number" min="0" step="1" required /></label>
+      {job.operator_does_work && <label>Operaatori tegelikud töötunnid objektil<input name="operatorWorkHours" type="number" min="0" step="0.25" defaultValue={job.actual_operator_work_hours ?? job.estimated_hours ?? 0} required /><small className="muted">Ainult töö teostamine. Ära arvesta siia sõiduaega ega sõite peatuste vahel.</small></label>}
       <label>Lisamehe tunnid<input name="helperHours" inputMode="decimal" type="number" min="0" step="0.5" defaultValue={job.helper_hours ?? 0} /></label>
       <label>Lisatöö kirjeldus<textarea name="extraWorkDescription" rows={2} placeholder="Jäta tühjaks, kui lisatööd ei olnud" /></label>
       <label>Operaatori märkus<textarea name="operatorNote" rows={2} defaultValue={job.operator_note ?? ''} /></label>

@@ -45,7 +45,7 @@ test('manager and worker can open the same edit form for unfinished jobs', () =>
   assert.match(form, /name="plannedDate"[^>]*type="date"/)
   assert.match(form, /name="plannedTime"[^>]*type="time"/)
   assert.match(form, /JobLocationFields/)
-  assert.match(form, /name="estimatedHours"/)
+  assert.match(form + readFileSync(resolve(root, 'src/components/JobPricingFields.tsx'), 'utf8'), /name="estimatedHours"/)
   assert.match(form, /Salvesta muudatused/)
 })
 

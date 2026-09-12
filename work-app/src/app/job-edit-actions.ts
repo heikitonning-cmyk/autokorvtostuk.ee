@@ -61,8 +61,9 @@ export async function updateJob(formData: FormData) {
     siteAddress = newSite.address
   }
 
-  const { error } = await supabase.rpc('update_editable_job', {
+  const { error } = await supabase.rpc('update_editable_job_with_operator_work', {
     p_job_id: id,
+    p_operator_does_work: formData.get('operatorDoesWork') === 'on',
     p_customer_id: customerId,
     p_site_id: siteId,
     p_vehicle_id: text(formData.get('vehicleId')),

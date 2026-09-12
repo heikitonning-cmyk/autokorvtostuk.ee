@@ -1,3 +1,4 @@
+import { OperatorWorkSummary } from '@/components/OperatorWorkSummary'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireView } from '@/lib/session'
@@ -64,6 +65,8 @@ export default async function OperatorJobPage({ params, searchParams }: { params
     {!isMine && job.operator_id && <div className="alert">Töö on teise kasutaja võetud. Planeerimisandmeid saad siiski muuta.</div>}
 
     {!hasStops && <section className="detail-card important"><p className="operator-address">{waze ? <a href={waze} target="_blank" rel="noreferrer">{job.address}</a> : 'Aadress määramata'}</p><div className="action-grid two">{waze ? <a className="button secondary" href={waze} target="_blank" rel="noreferrer">Navigeeri</a> : <span className="button disabled">Aadress puudub</span>}{job.customer?.phone ? <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a> : <span className="button disabled">Telefon puudub</span>}</div></section>}
+
+    <OperatorWorkSummary job={job} />
 
     <section className="detail-card"><h2>Mida teha?</h2><p className="large-copy">{job.description || job.work_type?.name || 'Kirjeldus puudub.'}</p>{job.access_notes && <div className="note-box"><strong>Enne alustamist</strong><p>{job.access_notes}</p></div>}</section>
 

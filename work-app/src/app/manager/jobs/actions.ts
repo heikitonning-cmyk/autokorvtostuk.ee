@@ -47,6 +47,7 @@ export async function createJob(formData: FormData) {
     km: num(formData.get('estimatedKm')),
     helperHours: num(formData.get('estimatedHelperHours')),
     adjustment: num(formData.get('manualAdjustment')),
+    operatorDoesWork: formData.get('operatorDoesWork') === 'on',
   }
   const price = calculatePrice(priceInput, settings)
   const plannedDate = optionalText(formData.get('plannedDate'))
@@ -114,6 +115,9 @@ export async function createJob(formData: FormData) {
     access_notes: optionalText(formData.get('accessNotes')),
     status: 'uus',
     estimated_total: price.total,
+    operator_does_work: priceInput.operatorDoesWork,
+    operator_work_surcharge: price.operatorWork,
+    operator_work_hourly_rate: settings.operatorWorkHourlyRate ?? 15,
     estimated_hours: priceInput.liftHours,
     estimated_drive_hours: priceInput.driveHours,
     estimated_km: priceInput.km,
@@ -152,7 +156,7 @@ export async function confirmJob(formData: FormData) {
   const id = String(formData.get('id') ?? '')
   const supabase = await createClient()
   const { data: job } = await supabase.from('jobs').select('*').eq('id', id).single()
-  if (!job) return
+  if (!job || job.status !== 'uus') return
   const settings = await getPricingSettings()
   const price = calculatePrice({
     liftHours: Number(job.estimated_hours ?? 2),
@@ -160,12 +164,15 @@ export async function confirmJob(formData: FormData) {
     km: Number(job.estimated_km ?? 0),
     helperHours: Number(job.estimated_helper_hours ?? 0),
     adjustment: Number(job.manual_adjustment ?? 0),
+    operatorDoesWork: job.operator_does_work === true,
   }, settings)
   await supabase.from('jobs').update({
     status: 'kinnitatud',
     price_snapshot_json: createPriceSnapshot(settings),
+    operator_work_surcharge: price.operatorWork,
+    operator_work_hourly_rate: settings.operatorWorkHourlyRate ?? 15,
     estimated_total: price.total,
-  }).eq('id', id)
+  }).eq('id', id).eq('status', 'uus')
   revalidatePath('/manager')
   revalidatePath('/operator')
   revalidatePath(`/manager/jobs/${id}`)

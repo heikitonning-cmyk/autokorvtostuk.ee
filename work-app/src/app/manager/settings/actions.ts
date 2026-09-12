@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 
 const n = (v: FormDataEntryValue | null, fallback: number) => {
+  if (v == null || String(v).trim() === '') return fallback
   const x = Number(v)
   return Number.isFinite(x) && x >= 0 ? x : fallback
 }
@@ -17,9 +18,11 @@ export async function updatePricing(formData: FormData) {
     driveHourlyRate: n(formData.get('driveHourlyRate'), 45),
     kmRate: n(formData.get('kmRate'), 1),
     helperHourlyRate: n(formData.get('helperHourlyRate'), 35),
+    operatorWorkHourlyRate: n(formData.get('operatorWorkHourlyRate'), 15),
   }
   const supabase = await createClient()
-  await supabase.from('settings').upsert({ key: 'pricing', value, updated_by: user.id })
+  const { error } = await supabase.from('settings').upsert({ key: 'pricing', value, updated_by: user.id })
+  if (error) throw new Error('Hindade salvestamine ei õnnestunud.')
   revalidatePath('/manager/settings')
   revalidatePath('/manager/jobs/new')
 }
