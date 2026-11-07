@@ -16,3 +16,26 @@
 .completion-dialog::backdrop{background:rgba(16,24,40,.55)}
 .completion-dialog input{min-width:0;max-width:100%}
 .completion-dialog button:disabled{opacity:.65;cursor:wait}
+/* Employee time and wage entry, using the app's existing visual language. */
+.payroll-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.payroll-fields .check-row { display: flex; align-items: center; gap: 10px; }
+.payroll-fields .check-row input { width: 20px; height: 20px; min-height: 20px; padding: 0; flex: 0 0 20px; }
+.payroll-page button:disabled { opacity: .55; cursor: wait; }
+.payroll-preview { background: #fff7d6; border: 1px solid #f2d675; padding: 16px; border-radius: 12px; font-weight: 700; font-size: 18px; }
+.payroll-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.payroll-tabs button { flex: 1; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.payroll-tabs button.active { background: #fff; box-shadow: 0 1px 4px #0002; font-weight: 700; }
+.payroll-buttons { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.payroll-month { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.payroll-total-row { display: flex; flex-wrap: wrap; gap: 8px 16px; border-top: 1px solid #eaecf0; padding: 14px 0; }
+.payroll-total-row strong { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
+.payroll-total-row b { white-space: nowrap; }
+.payroll-entry-heading { display: flex; justify-content: space-between; gap: 16px; }
+.payroll-entry-heading > strong { white-space: nowrap; }
+.payroll-page input, .payroll-page select { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .bottom-nav a { font-size: 11px; padding-left: 2px; padding-right: 2px; }
+  .payroll-tabs button { padding: 10px 6px; font-size: 14px; }
+  .payroll-total-row strong { flex-basis: 100%; }
+  .payroll-total-row span { flex: 1; }
+}
