@@ -1,3 +1,5 @@
+import { JobContactActions } from '@/components/JobContactActions'
+import { jobPhoneHref } from '@/lib/job-contact'
 import { OperatorWorkSummary } from '@/components/OperatorWorkSummary'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -22,7 +24,7 @@ const stopErrorText: Record<string, string> = {
   'note-required': 'Peatuse lõpetamiseks või vahele jätmiseks lisa kohustuslik märkus.',
   'photo-required': 'Peatuse märkimiseks tehtuks lisa vähemalt üks foto.',
   'stop-state': 'Peatuse olek muutus. Värskendasin töö — proovi uuesti.',
-  'not-assigned': 'Seda peatust saab teostada ainult töö võtnud kasutaja.',
+  'not-assigned': 'Seda peatust saab teostada ainult tööle määratud juht.',
   'stale-route': 'Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.',
   'stops-open': 'Tööd ei saa lõpetada enne, kui kõik peatused on tehtud või vahele jäetud.',
 }
@@ -62,9 +64,9 @@ export default async function OperatorJobPage({ params, searchParams }: { params
     {query.saved && <div className="alert success">Muudatused salvestatud.</div>}
     {query.completed && <div className="alert success">Töö märgitud tehtuks.</div>}
     {errorMessage && <div className="alert danger">{errorMessage}</div>}
-    {!isMine && job.operator_id && <div className="alert">Töö on teise kasutaja võetud. Planeerimisandmeid saad siiski muuta.</div>}
+    {!isMine && job.operator_id && <div className="alert">Tööle on määratud teine juht.</div>}
 
-    {!hasStops && <section className="detail-card important"><p className="operator-address">{waze ? <a href={waze} target="_blank" rel="noreferrer">{job.address}</a> : 'Aadress määramata'}</p><div className="action-grid two">{waze ? <a className="button secondary" href={waze} target="_blank" rel="noreferrer">Navigeeri</a> : <span className="button disabled">Aadress puudub</span>}{job.customer?.phone ? <a className="button secondary" href={`tel:${job.customer.phone}`}>Helista kliendile</a> : <span className="button disabled">Telefon puudub</span>}</div></section>}
+    {!hasStops && <section className="detail-card important"><p className="operator-address">{waze ? <a href={waze} target="_blank" rel="noreferrer">{job.address}</a> : 'Aadress määramata'}</p><JobContactActions navigationUrl={waze} phoneUrl={jobPhoneHref(job)}/></section>}
 
     <OperatorWorkSummary job={job} />
 
@@ -74,7 +76,7 @@ export default async function OperatorJobPage({ params, searchParams }: { params
 
     {isMine && ['kinnitatud','teel'].includes(job.status) && <form action={startJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide giant" type="submit">ALUSTA TÖÖD</button></form>}
 
-    {hasStops && currentStop && <ActiveStopCard jobId={job.id} stop={currentStop} canOperate={isMine && job.status === 'toob'} />}
+    {hasStops && currentStop && <ActiveStopCard jobId={job.id} stop={currentStop} canOperate={isMine && job.status === 'toob'} phoneUrl={jobPhoneHref(job)} />}
     {editable && hasStops && !currentStop && stopsResolved && <section className="detail-card important"><h2>Kõik peatused on lahendatud</h2><p>Võid tööpäeva lõpetada.</p></section>}
 
     {editable && hasStops && pendingCount >= 2 && routeHasProgress && <RouteOptimizationPanel jobId={job.id} mode="remaining" routeRevision={job.route_revision ?? 0} />}

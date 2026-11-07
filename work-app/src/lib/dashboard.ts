@@ -160,3 +160,20 @@ export function freeCapacityDays(
     return { date, freeHours: Math.max(0, Math.round((8 - bookedHours) * 10) / 10) }
   }).filter((day) => day.freeHours >= 2)
 }
+
+export function managerDashboardFilter(jobs: SummaryJob[], filter: string, now = new Date()): {title:string;jobs:SummaryJob[]} | null {
+  const summary = managerSummary(jobs, now)
+  switch (filter) {
+    case 'today': return {title:'Tänased tööd', jobs:summary.todayJobs}
+    case 'week': return {title:'7 päeva tööd', jobs:jobsWithinDays(jobs,7,now)}
+    case 'month': return {title:'30 päeva tööd', jobs:jobsWithinDays(jobs,30,now)}
+    case 'new': return {title:'Uued tööd', jobs:summary.newJobs}
+    case 'overdue': return {title:'Hilinenud tööd', jobs:summary.overdueNotStarted}
+    case 'follow-up': return {title:'Järeltegevust vajavad tööd', jobs:summary.followUp}
+    default: return null
+  }
+}
+
+export function jobsOnPlannedDate(jobs:SummaryJob[],date:string):SummaryJob[] {
+  return jobs.filter(job=>job.status!=='tuhistatud' && plannedDateKey(job)===date)
+}

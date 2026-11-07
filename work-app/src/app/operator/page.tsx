@@ -6,7 +6,6 @@ import { formatPlannedTime } from '@/lib/jobs'
 import { StatusBadge } from '@/components/StatusBadge'
 import { isActiveJob, isCompletedJob } from '@/lib/status'
 import type { JobStatus } from '@/lib/domain'
-import { claimJob, releaseJob } from './actions'
 
 function tallinnDateKey(value = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -30,7 +29,6 @@ function PlanJobCard({ job }: { job: any }) {
   const name = job.object_name || job.customer_name || 'Töö'
   const workType = job.work_type_name || 'Tööliik määramata'
   const editable = isActiveJob(job)
-  const canRelease = job.is_mine && editable && job.status !== 'toob'
 
   return <div className="job-card">
     <div className="job-card-top">
@@ -40,20 +38,12 @@ function PlanJobCard({ job }: { job: any }) {
     <div className="job-address">{job.address || 'Aadress määramata'}</div>
     <div className="job-meta"><span>{workType}</span>{!job.is_free && !job.is_mine && <span>Hõivatud</span>}</div>
 
-    {job.is_free && editable ? <div className="stack top-gap">
-      <form action={claimJob}>
-        <input type="hidden" name="id" value={job.id} />
-        <button className="button primary wide" type="submit">VÕTA TÖÖ</button>
-      </form>
-      <Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>
-    </div> : job.is_mine ? <div className="stack top-gap">
-      <Link className="button primary wide" href={`/operator/jobs/${job.id}`}>{job.status === 'toob' ? 'JÄTKA TÖÖD' : 'AVA TÖÖ'}</Link>
+    <div className="stack top-gap">
+      {job.is_free && <p className="muted">Juht määramata · määrab juhataja</p>}
+      {job.is_mine && <Link className="button primary wide" href={`/operator/jobs/${job.id}`}>{job.status === 'toob' ? 'JÄTKA TÖÖD' : 'AVA TÖÖ'}</Link>}
       {editable && <Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link>}
-      {canRelease && <form action={releaseJob}>
-        <input type="hidden" name="id" value={job.id} />
-        <button className="button secondary wide" type="submit">Vabasta töö</button>
-      </form>}
-    </div> : editable ? <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}/edit`}>Muuda</Link></div> : <div className="top-gap"><Link className="button secondary wide" href={`/operator/jobs/${job.id}`}>Ava töö</Link></div>}
+      {!job.is_mine && <Link className="button secondary wide" href={`/operator/jobs/${job.id}`}>Vaata tööd</Link>}
+    </div>
   </div>
 }
 
@@ -87,9 +77,7 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     (view === 'calendar' || (view === 'history' ? isCompletedJob(job) : isActiveJob(job))))
 
   return <div className="page stack-lg operator-page">
-    <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Ühe tõstuki ühine tööplaan ja vabad ajad.</p></div>
-    {params.claimed && <div className="alert success">Töö on nüüd sinu.</div>}
-    {params.released && <div className="alert success">Töö vabastati ja on jälle teistele nähtav.</div>}
+    <div><p className="eyebrow">Kasutaja</p><h1>Tööd</h1><p className="muted">Ühine tööplaan ja vabad ajad. Tööle määrab juhi juhataja.</p></div>
     {params.done && <div className="alert success">Töö lõpetatud ja salvestatud.</div>}
     {errorText && <div className="alert danger">{errorText}</div>}
 

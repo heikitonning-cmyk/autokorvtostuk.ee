@@ -79,7 +79,7 @@ export async function getReferenceData() {
   const supabase = await createClient()
   const [customers, operators, workTypes, vehicles, sites] = await Promise.all([
     supabase.from('customers').select('id,name,contact_name,phone').order('name'),
-    supabase.from('users').select('id,name').eq('role', 'operator').eq('active', true).order('name'),
+    supabase.from('users').select('id,name').in('role', ['operator','manager']).eq('active', true).order('name'),
     supabase.from('work_types').select('id,name').eq('active', true).order('name'),
     supabase.from('vehicles').select('id,name,registration_number').eq('active', true).order('name'),
     supabase.from('customer_sites').select(siteSelect).eq('active', true).order('customer_id').order('name'),
@@ -243,4 +243,9 @@ export async function getWorkTypes() {
   const { data, error } = await supabase.from('work_types').select('*').order('name')
   if (error) throw error
   return data ?? []
+}
+
+export async function getAssignableOperators() {
+  const db=await createClient()
+  return readAllPages<{id:string;name:string}>((a,b)=>db.from('users').select('id,name').in('role',['operator','manager']).eq('active',true).order('name').order('id').range(a,b))
 }
