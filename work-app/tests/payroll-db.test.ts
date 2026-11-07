@@ -31,6 +31,7 @@ test('payroll migration enforces calculations, historical rates, overlaps and ac
   await db.exec(helpers.slice(0,helpers.indexOf('create or replace function private.audit_job_change')))
   const sql = readFileSync(new URL('../supabase/migrations/20261107052811_employee_time_wages.sql', import.meta.url),'utf8')
   await db.exec(`begin; ${sql} commit;`)
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261107061650_worker_first_payroll.sql', import.meta.url),'utf8'))
   await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${manager}',false);`)
   await db.exec(`insert into public.payroll_employees(id,name,hourly_rate_cents) values ('${employee}','Tööline A',1250),('${other}','Tööline B',1500);`)
   const add = (id:string, date:string, start:number, end:number, lunch=0, nextDay=false, worker=employee) => db.query<{hourly_rate_cents:number;wage_cents:number}>(`insert into public.payroll_entries(id,employee_id,site_id,work_date,start_minute,end_minute,break_minutes,next_day) values ($1,$2,$3,$4,$5,$6,$7,$8) returning *`,[id,worker,site,date,start,end,lunch,nextDay])
