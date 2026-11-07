@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { PayrollBalance, PayrollPayment } from '@/lib/payroll-payments'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { readAllPages } from '@/lib/pagination'
@@ -21,10 +22,12 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
       readAllPages<{id:string;name:string}>((a,b) => db.from('customers').select('id,name').order('name').order('id').range(a,b)),
       readAllPages<TimeEntry>((a,b) => db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id)').not('end_minute','is',null).gte('work_date',from).lt('work_date',to).order('work_date',{ascending:false}).order('start_minute',{ascending:false}).order('id').range(a,b)),
       readAllPages<TimeEntry>((a,b) => db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id)').is('end_minute',null).order('work_date').order('start_minute').order('id').range(a,b)),
+      readAllPages<PayrollPayment>((a,b)=>db.from('payroll_payments').select('id,employee_id,paid_date,amount_cents,note,updated_at,voided_at').gte('paid_date',from).lt('paid_date',to).order('paid_date',{ascending:false}).order('id').range(a,b)),
+      readAllPages<PayrollBalance>((a,b)=>db.rpc('payroll_balances').order('employee_id').range(a,b)),
     ])
   } catch {
     return <div className="page stack-lg"><h1>Tunnid ja palgad</h1><div className="alert danger" role="alert">Andmeid ei õnnestunud laadida. Proovi leht uuesti avada. Kui viga kordub, vajab mooduli ühendus kontrollimist.</div><Link className="button secondary" href="/manager/time">Proovi uuesti</Link></div>
   }
   const saved = typeof params.saved === 'string'
-  return <PayrollWorkspace key={`${month}-${params.saved ?? ''}-${params.view ?? ''}`} month={month} today={today} employees={data[0]} sites={data[1]} customers={data[2]} entries={data[3]} running={data[4]} now={new Date().toISOString()} saved={saved} showSummary={saved || params.view === 'summary'} />
+  return <PayrollWorkspace key={`${month}-${params.saved ?? ''}-${params.view ?? ''}-${params.paymentSaved ?? ''}`} month={month} today={today} employees={data[0]} sites={data[1]} customers={data[2]} entries={data[3]} running={data[4]} now={new Date().toISOString()} payments={data[5]} balances={data[6]} paymentRequestId={crypto.randomUUID()} showPayments={params.view==='payments'} paymentSaved={typeof params.paymentSaved==='string'} saved={saved} showSummary={saved || params.view === 'summary'} />
 }
