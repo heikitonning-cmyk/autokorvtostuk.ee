@@ -19,8 +19,9 @@ export function AppShell({ user, view, children }: { user: AppUser; view: AppVie
       <main className="app-main">{children}</main>
       <nav className="bottom-nav" aria-label="Rakenduse navigatsioon">
         {managerView ? <>
-          <Link href="/manager">Juhtimispult</Link>
+          <Link href="/manager">Avaleht</Link>
           <Link href="/manager/calendar">Kalender</Link>
+          <Link href="/manager/time">Tunnid</Link>
           <Link href="/manager/customers">Kliendid</Link>
           <Link href="/manager/users">Kasutajad</Link>
           <Link href="/manager/settings">Seaded</Link>
