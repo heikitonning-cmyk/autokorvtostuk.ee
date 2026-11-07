@@ -102,7 +102,7 @@ export async function createJob(formData: FormData) {
     customer_id: customerId,
     site_id: siteId,
     vehicle_id: optionalText(formData.get('vehicleId')),
-    operator_id: null,
+    operator_id: optionalText(formData.get('operatorId')),
     planned_date: plannedDate,
     planned_time: plannedTime,
     planned_end_time: plannedEndTime,

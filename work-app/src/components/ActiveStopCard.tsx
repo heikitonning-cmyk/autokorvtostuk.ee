@@ -1,3 +1,4 @@
+import { JobContactActions } from '@/components/JobContactActions'
 import { ElapsedTimer } from '@/components/ElapsedTimer'
 import { PhotoUploader } from '@/components/PhotoUploader'
 import { completeJobStop, skipJobStop, startJobStop } from '@/app/operator/jobs/actions'
@@ -24,7 +25,7 @@ const statusLabel: Record<JobStopStatus, string> = {
   skipped: 'Vahele jäetud',
 }
 
-export function ActiveStopCard({ jobId, stop, canOperate = true }: { jobId: string; stop: ActiveStop; canOperate?: boolean }) {
+export function ActiveStopCard({ jobId, stop, canOperate = true, phoneUrl = null }: { jobId: string; stop: ActiveStop; canOperate?: boolean; phoneUrl?:string|null }) {
   const nav = wazeUrl(stop.address_snapshot)
   const photoCount = stop.job_photos?.length ?? 0
 
@@ -36,8 +37,8 @@ export function ActiveStopCard({ jobId, stop, canOperate = true }: { jobId: stri
       {stop.description && <p>{stop.description}</p>}
     </div>
 
+    <JobContactActions navigationUrl={nav} phoneUrl={phoneUrl}/>
     {stop.status === 'pending' && <>
-      <a className="button secondary wide giant" href={nav} target="_blank" rel="noreferrer">Navigeeri Waze'is</a>
       {canOperate && <form action={startJobStop}>
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="stopId" value={stop.id} />

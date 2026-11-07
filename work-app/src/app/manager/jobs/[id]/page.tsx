@@ -1,7 +1,11 @@
+import { JobAssignmentForm } from '@/components/JobAssignmentForm'
+import { JobContactActions } from '@/components/JobContactActions'
+import { jobPhoneHref } from '@/lib/job-contact'
+import { wazeUrl } from '@/lib/job-stops'
 import { OperatorWorkSummary } from '@/components/OperatorWorkSummary'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getCustomerSites, getJobDetail } from '@/lib/queries'
+import { getCustomerSites, getJobDetail, getAssignableOperators } from '@/lib/queries'
 import { StatusBadge } from '@/components/StatusBadge'
 import { JobStopsEditor } from '@/components/JobStopsEditor'
 import { StopCorrectionForm } from '@/components/StopCorrectionForm'
@@ -46,7 +50,9 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const stops = [...(job.job_stops ?? [])].sort((a:any,b:any)=>Number(a.sequence_no)-Number(b.sequence_no))
   const pendingCount = stops.filter((stop:any)=>stop.status==='pending').length
   const routeHasProgress = Boolean(job.actual_start) || stops.some((stop:any)=>stop.status!=='pending' || Boolean(stop.actual_start))
-  const sites = editable ? await getCustomerSites() : []
+  const [sites,operators] = editable ? await Promise.all([getCustomerSites(),getAssignableOperators()]) : [[],[]]
+  const navigationStop=stops.find((s:any)=>s.status==='in_progress')??stops.find((s:any)=>s.status==='pending')
+  const navigationUrl=navigationStop ? wazeUrl(navigationStop.address_snapshot) : waze
   const rawError = Array.isArray(query.error) ? query.error[0] : query.error
   const jobName = job.object_name || job.customer?.name || 'Töö'
 
@@ -56,7 +62,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     {query.completed && <div className="alert success">Töö märgitud tehtuks.</div>}
     {rawError === 'stale-route' && <div className="alert danger">Marsruuti muudeti teises vaates. Värskendasin järjekorra — proovi muudatus uuesti.</div>}
     {rawError && correctionErrors[rawError] && <div className="alert danger">{correctionErrors[rawError]}</div>}
-    {waze && stops.length === 0 && <a className="button secondary wide" href={waze} target="_blank" rel="noreferrer">Navigeeri</a>}
+    <JobContactActions navigationUrl={navigationUrl} phoneUrl={jobPhoneHref(job)}/>
+    {editable && <JobAssignmentForm job={job} operators={operators}/>}
     {job.status === 'uus' && <div className="action-grid two"><form action={confirmJob}><input type="hidden" name="id" value={job.id} /><button className="button primary wide">Kinnita töö</button></form><form action={cancelJob}><input type="hidden" name="id" value={job.id} /><button className="button danger-outline wide">Tühista</button></form></div>}
 
     {stops.length > 0 && <section className="detail-card stack"><div><h2>Peatuste seis</h2><p>Kokku <strong>{stops.length}</strong> · Tehtud <strong>{stops.filter((s:any)=>s.status==='done').length}</strong> · Vahele jäetud <strong>{stops.filter((s:any)=>s.status==='skipped').length}</strong> · Ootel <strong>{stops.filter((s:any)=>s.status==='pending').length}</strong></p></div><div className="event-list">{stops.map((stop:any)=><div key={stop.id} className="stack"><strong>{stop.sequence_no}. {stop.name_snapshot || stop.address_snapshot}</strong><span>{stopStatus(stop.status)} · {stopDuration(stop.actual_start, stop.actual_end)}</span>{stop.completion_note && <small>{stop.completion_note}</small>}{(stop.status === 'done' || stop.status === 'skipped') && <StopCorrectionForm jobId={job.id} stop={stop} />}</div>)}</div></section>}

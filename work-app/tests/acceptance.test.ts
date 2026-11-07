@@ -23,11 +23,11 @@ test('v1 contains the critical manager and operator routes', () => {
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
 })
 
-test('new job form exposes separate date and time controls without operator assignment', () => {
+test('new job form exposes date, time and manager-selected operator', () => {
   const page = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
   assert.match(page, /name="plannedDate"[^>]*type="date"/)
   assert.match(page, /name="plannedTime"[^>]*type="time"/)
-  assert.doesNotMatch(page, /name="operatorId"/)
+  assert.match(page, /name="operatorId"/)
 })
 
 test('manager and worker can open the same edit form for unfinished jobs', () => {
@@ -87,7 +87,7 @@ test('manager and worker job details expose address navigation', () => {
   for (const page of [manager, worker]) {
     assert.match(page, /https:\/\/www\.waze\.com\/ul\?q=/)
     assert.match(page, /navigate=yes/)
-    assert.match(page, /Navigeeri/)
+    assert.match(page, /JobContactActions/)
   }
   assert.match(manager, /job\.address/)
   assert.match(worker, /job\.address/)
@@ -112,10 +112,10 @@ test('worker shared work plan exposes edit for any editable job', () => {
   assert.match(page, /Hõivatud/)
 })
 
-test('worker job controls still support self-service claim and release', () => {
+test('worker job controls use manager assignment instead of self-service', () => {
   const card = readFileSync(resolve(root, 'src/components/OperatorJobCard.tsx'), 'utf8')
-  assert.match(card, /VÕTA TÖÖ/)
-  assert.match(card, /Vabasta töö/)
+  assert.doesNotMatch(card, /VÕTA TÖÖ/)
+  assert.doesNotMatch(card, /Vabasta töö/)
 })
 
 test('worker landing page combines shared lift availability and work plan', () => {
@@ -126,7 +126,7 @@ test('worker landing page combines shared lift availability and work plan', () =
   assert.match(page, /freeCapacityDays/)
   assert.match(page, /Vabad aknad · 7 päeva/)
   assert.match(page, /Tööplaan/)
-  assert.match(page, /VÕTA TÖÖ/)
+  assert.doesNotMatch(page, /VÕTA TÖÖ/)
   assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
   assert.match(oldCalendar, /redirect\(['"]\/operator\?view=calendar['"]\)/)
 })

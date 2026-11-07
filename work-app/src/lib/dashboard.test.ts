@@ -130,3 +130,19 @@ test('manager jobs are grouped into dated sections with unscheduled and cancelle
     { key: 'cancelled:2026-08-24', ids: ['cancelled'] },
   ])
 })
+
+test('dashboard filter jobs match the counts and earnings on each clicked card',()=>{
+  const now=new Date('2026-08-22T10:30:00+03:00')
+  const input=[...jobs,
+    {id:'past',status:'completed',start_planned:'2026-07-01T10:00:00+03:00',completed_at:'2026-08-22T08:00:00+03:00',actual_total:200,estimated_total:100},
+    {id:'future',status:'kinnitatud',start_planned:'2026-09-10T10:00:00+03:00',actual_total:null,estimated_total:50},
+    {id:'cancelled',status:'tuhistatud',start_planned:'2026-08-22T10:00:00+03:00',actual_total:null,estimated_total:500},
+  ] as any[]
+  const summary=managerSummary(input,now)
+  for(const [key,expected] of Object.entries({today:summary.todayJobs,week:dashboardModule.jobsWithinDays(input,7,now),month:dashboardModule.jobsWithinDays(input,30,now),new:summary.newJobs,overdue:summary.overdueNotStarted,'follow-up':summary.followUp})) {
+    assert.deepEqual(dashboardModule.managerDashboardFilter(input,key,now)?.jobs,expected)
+  }
+  assert.equal(dashboardModule.managerDashboardFilter(input,'unknown',now),null)
+  assert.deepEqual(dashboardModule.jobsOnPlannedDate(input,'2026-09-10').map(j=>j.id),['future'])
+  assert.equal(dashboardModule.jobsOnPlannedDate(input,'2026-08-22').some(j=>j.id==='cancelled'),false)
+})
