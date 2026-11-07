@@ -2,12 +2,14 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { PaymentBalances, PayrollPayments } from '@/components/PayrollPayments'
+import type { PayrollBalance, PayrollPayment } from '@/lib/payroll-payments'
 import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react'
 import { addPayrollSite, deleteTimeEntry, finishTimeEntries, saveEmployee, saveTimeEntry } from '@/app/manager/time/actions'
 import { calculateTime, clock, entrySiteIds, euros, groupedTotals, hours, runningMinutes, tallinnClock, tallinnDate, totals, wageCents, type ActionState, type Employee, type PayrollSite, type TimeEntry } from '@/lib/payroll'
 
 type Customer = { id: string; name: string }
-type Props = { month: string; today: string; employees: Employee[]; sites: PayrollSite[]; customers: Customer[]; entries: TimeEntry[]; running: TimeEntry[]; now: string; saved: boolean; showSummary?: boolean }
+type Props = { month: string; today: string; employees: Employee[]; sites: PayrollSite[]; customers: Customer[]; entries: TimeEntry[]; running: TimeEntry[]; now: string; saved: boolean; showSummary?: boolean; payments:PayrollPayment[]; balances:PayrollBalance[]; paymentRequestId:string; showPayments:boolean; paymentSaved:boolean }
 const initial: ActionState = {}
 
 // Dispatch explicitly so a rejected action cannot reset native select fields.
@@ -165,8 +167,9 @@ function DeleteEntry({entry,onDeleted}: {entry:TimeEntry;onDeleted?:()=>void}) {
   </form>
 }
 
-export function PayrollWorkspace({month,today,employees,sites,customers,entries,running,now,saved,showSummary}: Props) {
-  const [tab,setTab] = useState<'entry'|'summary'|'employees'|'sites'>(showSummary ? 'summary' : 'entry')
+export function PayrollWorkspace({month,today,employees,sites,customers,entries,running,now,saved,showSummary,payments,balances,paymentRequestId,showPayments,paymentSaved}: Props) {
+  const [tab,setTab] = useState<'entry'|'summary'|'payments'|'employees'|'sites'>(showPayments ? 'payments' : showSummary ? 'summary' : 'entry')
+  const [paymentEmployee,setPaymentEmployee]=useState('')
   const [edit,setEdit] = useState<TimeEntry>()
   const [employeeFilter,setEmployeeFilter] = useState(''), [siteFilter,setSiteFilter] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
@@ -174,26 +177,29 @@ export function PayrollWorkspace({month,today,employees,sites,customers,entries,
   const total = totals(visible)
   const employeeName = (id:string) => employees.find(e=>e.id===id)?.name ?? 'Tööline'
   const siteName = (id:string) => {const site=sites.find(s=>s.id===id); return site ? `${site.name} · ${customers.find(c=>c.id===site.customer_id)?.name ?? ''}` : 'Objekt'}
+  const openPayment = (id:string) => {setPaymentEmployee(id);setTab('payments');heading.current?.focus();window.scrollTo({top:0,behavior:'smooth'})}
   const editEntry = (entry:TimeEntry) => {setEdit(entry);setTab('entry');heading.current?.focus();window.scrollTo({top:0,behavior:'smooth'})}
   return <div className="page stack-lg payroll-page">
     <div><p className="eyebrow">Tööaja arvestus</p><h1 ref={heading} tabIndex={-1}>Tunnid ja palgad</h1><p className="muted">Üks või mitu töölist korraga. Algus, lõpp ja soovi korral lõuna ning objektid.</p></div>
-    <div className="segmented payroll-tabs" aria-label="Tööaja vaated">{([['entry','Tööaeg'],['summary','Kokkuvõte'],['employees','Töölised'],['sites','Objektid']] as const).map(([id,label])=><button key={id} type="button" className={tab===id?'active':''} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</div>
+    <div className="segmented payroll-tabs" aria-label="Tööaja vaated">{([['entry','Tööaeg'],['summary','Kokkuvõte'],['payments','Maksed'],['employees','Töölised'],['sites','Objektid']] as const).map(([id,label])=><button key={id} type="button" className={tab===id?'active':''} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</div>
     <section hidden={tab!=='entry'} className="stack">
       <RunningWork running={running} employees={employees} sites={sites} now={now} onEdit={editEntry}/>
       {!employees.some(e=>e.active) && !edit ? <div className="form-card stack"><h2>Lisa esimene tööline</h2><p>Vaja on ainult nime ja tunnihinda. Töölisele ei ole vaja kasutajakontot.</p><EmployeeForm/></div> : <TimeForm key={edit?.id ?? 'new'} employees={employees} sites={sites} customers={customers} running={running} now={now} date={month===today.slice(0,7)?today:`${month}-01`} entry={edit} onCancel={()=>setEdit(undefined)}/>}
       {edit?.end_minute===null && <DeleteEntry entry={edit} onDeleted={()=>setEdit(undefined)}/>}
       <div className="payroll-buttons"><button type="button" className="button secondary" onClick={()=>setTab('employees')}>+ Tööline</button><button type="button" className="button secondary" onClick={()=>setTab('sites')}>+ Objekt</button></div>
     </section>
+    <section hidden={tab!=='payments'}><PayrollPayments key={paymentEmployee} employees={employees} balances={balances} payments={payments} today={today} month={month} requestId={paymentRequestId} initialEmployeeId={paymentEmployee} saved={paymentSaved}/></section>
     {tab==='summary' && <>
       {saved && <div className="alert success" role="status">Tööaeg salvestatud.</div>}
       <section className="form-card stack">
         <form method="get" action="/manager/time" className="payroll-month"><label>Kuu<input type="month" name="month" required min="2000-01" max="2099-12" defaultValue={month}/></label><input type="hidden" name="view" value="summary"/><button className="button secondary">Näita</button></form>
         <div className="form-grid two"><label>Tööline<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="">Kõik töölised</option>{employees.map(e=><option value={e.id} key={e.id}>{e.name}{e.active?'':' (arhiveeritud)'}</option>)}</select></label><label>Objekt<select value={siteFilter} onChange={e=>setSiteFilter(e.target.value)}><option value="">Kõik objektid</option><option value="none">Objektita</option>{sites.map(s=><option value={s.id} key={s.id}>{siteName(s.id)}</option>)}</select></label></div>
       </section>
-      <div className="metrics-grid"><div className="metric-card"><span>Töötunde kokku</span><strong>{hours(total.minutes)}</strong></div><div className="metric-card"><span>Palk kokku</span><strong>{euros(total.cents)}</strong><small>Makse ei arvestata</small></div><div className="metric-card"><span>Kirjeid</span><strong>{visible.length}</strong></div></div>
+      <div className="metrics-grid"><div className="metric-card"><span>Töötunde kokku</span><strong>{hours(total.minutes)}</strong></div><div className="metric-card"><span>Kuu teenitud tasu</span><strong>{euros(total.cents)}</strong><small>Makse ei arvestata</small></div><div className="metric-card"><span>Kirjeid</span><strong>{visible.length}</strong></div></div>
       <p className="muted">Öötöö arvestatakse alguskuupäeva kuusse. Summad liidetakse kirjete kaupa sendi täpsusega.</p>
       {siteFilter && <p className="muted">Objektifilter näitab seotud tööajakirjeid tervikuna. Tunde ja palka objektide vahel ei jagata.</p>}
-      <section className="detail-card"><h2>Tööliste palgad</h2>{groupedTotals(visible,'employee_id').map(g=><div className="payroll-total-row" key={g.id}><strong>{employeeName(g.id)}</strong><span>{hours(g.minutes)}</span><b>{euros(g.cents)}</b></div>)}{!visible.length && <p className="muted">Valitud kuus ja filtritega kirjeid pole.</p>}</section>
+      <PaymentBalances employees={employees.filter(e=>!employeeFilter||e.id===employeeFilter)} balances={balances} onPayment={openPayment}/>
+      <section className="detail-card"><h2>Valitud kuu teenitud tasu</h2>{groupedTotals(visible,'employee_id').map(g=><div className="payroll-total-row" key={g.id}><strong>{employeeName(g.id)}</strong><span>{hours(g.minutes)}</span><b>{euros(g.cents)}</b></div>)}{!visible.length && <p className="muted">Valitud kuus ja filtritega kirjeid pole.</p>}</section>
       <section className="stack"><h2>Tööajakirjed</h2>{visible.map(e=><article className="detail-card stack" key={e.id}>
         <div className="payroll-entry-heading"><div><strong>{employeeName(e.employee_id)}</strong><p className="muted">{entrySiteIds(e).map(siteName).join(' · ') || 'Objektita'}</p></div><strong>{euros(e.wage_cents ?? 0)}</strong></div>
         <p>{e.work_date.split('-').reverse().join('.')} · {clock(e.start_minute)}–{clock(e.end_minute ?? 0)}{e.next_day?' (+1 päev)':''} · paus {e.break_minutes} min</p>

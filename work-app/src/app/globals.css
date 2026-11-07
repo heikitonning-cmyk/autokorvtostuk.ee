@@ -48,6 +48,18 @@
 .payroll-running-row .payroll-choice { border:0; padding:4px; }
 .payroll-running-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px; }
 .payroll-running-actions > strong { flex:1; font-variant-numeric:tabular-nums; }
+.payroll-balance, .payroll-payment-row { border-top:1px solid var(--line); padding-top:16px; }
+.payroll-balance-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.payroll-balance-grid > div { border-radius:10px; padding:10px; background:#f8fafc; min-width:0; }
+.payroll-balance-grid span { display:block; font-size:12px; color:var(--muted); }
+.payroll-balance-grid strong { display:block; margin-top:5px; font-size:18px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.payroll-balance-grid .payroll-due { background:#fff7d6; }
+.payroll-balance-grid .payroll-advance { background:#ecfdf3; }
+@media (max-width:600px) {
+  .payroll-balance-grid > div { padding:9px 6px; }
+  .payroll-balance-grid strong { font-size:15px; }
+  .payroll-selection-heading { flex-wrap:wrap; }
+}
 @media (max-width: 600px) {
   .bottom-nav a { font-size: 11px; padding-left: 2px; padding-right: 2px; }
   .payroll-tabs button { padding: 10px 6px; font-size: 14px; }
