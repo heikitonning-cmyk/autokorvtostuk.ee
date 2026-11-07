@@ -1,11 +1,12 @@
 'use server'
 
 import { payrollHistoryParams, payrollHistoryUrl } from '@/lib/payroll-history'
+import { parseBulkEntries, parseBulkPatch } from '@/lib/payroll-bulk'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
-import { calculateTime, parseRate, validDate, type ActionState } from '@/lib/payroll'
+import { calculateTime, parseRate, validDate, tallinnDate, type ActionState } from '@/lib/payroll'
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? '').trim()
 const uuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
@@ -15,6 +16,24 @@ function dbError(error: { code?: string; message?: string }): ActionState {
   if (error.code === '23P01' || error.code === '23505') return { error: 'Sellel töölisel on samal ajal juba töö kirjas. Kontrolli olemasolevaid tunde.' }
   if (error.code === '23514' || error.code === '23503') return { error: 'Kontrolli tööaega ning tööliste ja valitud objektide andmeid.' }
   return { error: 'Salvestamine ei õnnestunud. Sinu sisestus on alles; proovi uuesti.' }
+}
+
+export async function bulkEditTimeEntries(_previous: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser('manager')
+  let entries, patch
+  try { entries = parseBulkEntries(value(form, 'entries')); patch = parseBulkPatch(form) }
+  catch (error) { return { error: (error as Error).message } }
+  try {
+    const db = await createClient()
+    const { error } = await db.rpc('bulk_edit_payroll_entries', {
+      p_entries: entries, p_start_minute: patch.startMinute, p_end_minute: patch.endMinute,
+      p_next_day: patch.nextDay, p_break_minutes: patch.breakMinutes,
+    })
+    if (error) return { error: `Ühtegi valitud kirjet ei muudetud. ${dbError(error).error}` }
+  } catch { return { error: 'Ühendus katkes. Värskenda nimekirja ja kontrolli enne uut salvestamist, kas muudatus jõudis kohale.' } }
+  revalidatePath('/manager/time')
+  const history = payrollHistoryParams({ month: value(form, 'returnMonth'), employee: value(form, 'returnEmployee'), scope: value(form, 'returnScope') }, tallinnDate().slice(0, 7))
+  redirect(payrollHistoryUrl(history, String(Date.now())))
 }
 
 export async function saveTimeEntry(_previous: ActionState, form: FormData): Promise<ActionState> {
