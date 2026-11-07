@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { payrollHistoryUrl, type PayrollHistory } from '@/lib/payroll-history'
 import { useRouter } from 'next/navigation'
 import { PaymentBalances, PayrollPayments } from '@/components/PayrollPayments'
 import type { PayrollBalance, PayrollPayment } from '@/lib/payroll-payments'
@@ -9,7 +10,7 @@ import { addPayrollSite, deleteTimeEntry, finishTimeEntries, saveEmployee, saveT
 import { calculateTime, clock, entrySiteIds, euros, groupedTotals, hours, runningMinutes, tallinnClock, tallinnDate, totals, wageCents, type ActionState, type Employee, type PayrollSite, type TimeEntry } from '@/lib/payroll'
 
 type Customer = { id: string; name: string }
-type Props = { month: string; today: string; employees: Employee[]; sites: PayrollSite[]; customers: Customer[]; entries: TimeEntry[]; running: TimeEntry[]; now: string; saved: boolean; showSummary?: boolean; payments:PayrollPayment[]; balances:PayrollBalance[]; paymentRequestId:string; showPayments:boolean; paymentSaved:boolean }
+type Props = { history:PayrollHistory; month: string; today: string; employees: Employee[]; sites: PayrollSite[]; customers: Customer[]; entries: TimeEntry[]; running: TimeEntry[]; now: string; saved: boolean; showSummary?: boolean; payments:PayrollPayment[]; balances:PayrollBalance[]; paymentRequestId:string; showPayments:boolean; paymentSaved:boolean }
 const initial: ActionState = {}
 
 // Dispatch explicitly so a rejected action cannot reset native select fields.
@@ -34,7 +35,7 @@ function SiteChoices({sites, customers, selected, onChange}: Pick<Props,'sites'|
   </details>
 }
 
-function TimeForm({ employees, sites, customers, running, date, now, entry, onCancel }: Pick<Props,'employees'|'sites'|'customers'|'running'|'now'> & { date:string; entry?:TimeEntry; onCancel:()=>void }) {
+function TimeForm({ employees, sites, customers, running, date, now, entry, onCancel, returnHistory }: Pick<Props,'employees'|'sites'|'customers'|'running'|'now'> & { date:string; entry?:TimeEntry; onCancel:()=>void; returnHistory?:PayrollHistory }) {
   const [state, action, pending] = useActionState(saveTimeEntry, initial)
   const [employeeIds, setEmployeeIds] = useState<string[]>(entry ? [entry.employee_id] : [])
   const [siteIds, setSiteIds] = useState(entry ? entrySiteIds(entry) : [])
@@ -58,6 +59,7 @@ function TimeForm({ employees, sites, customers, running, date, now, entry, onCa
     <h2>{entry ? (entry.end_minute===null ? 'Paranda ja lõpeta tööaeg' : 'Muuda tööaega') : 'Tööliste tööaeg'}</h2>
     <input type="hidden" name="id" value={entry?.id ?? ''} /><input type="hidden" name="version" value={entry?.updated_at ?? ''} />
     <input type="hidden" name="mode" value={mode}/>
+    {returnHistory && <><input type="hidden" name="returnView" value="summary"/><input type="hidden" name="returnMonth" value={returnHistory.month}/><input type="hidden" name="returnEmployee" value={returnHistory.employeeId}/><input type="hidden" name="returnScope" value={returnHistory.allDays?'all':'month'}/></>}
     <fieldset disabled={pending} className="payroll-fields stack">
       {!entry && <div className="segmented payroll-tabs" aria-label="Tööaja sisestamise viis">
         <button type="button" className={mode==='manual'?'active':''} aria-pressed={mode==='manual'} onClick={()=>setMode('manual')}>Sisesta algus ja lõpp</button>
@@ -167,24 +169,43 @@ function DeleteEntry({entry,onDeleted}: {entry:TimeEntry;onDeleted?:()=>void}) {
   </form>
 }
 
-export function PayrollWorkspace({month,today,employees,sites,customers,entries,running,now,saved,showSummary,payments,balances,paymentRequestId,showPayments,paymentSaved}: Props) {
+function HistoryFilters({history,employees}:{history:PayrollHistory;employees:Employee[]}) {
+  const [scope,setScope]=useState(history.allDays?'all':'month')
+  return <form action="/manager/time" method="get" className="stack">
+    <input type="hidden" name="view" value="summary"/>
+    <div className="form-grid two">
+      <label>Inimene<select name="employee" required={scope==='all'} defaultValue={history.employeeId}><option value="">{scope==='all'?'Vali inimene':'Kõik inimesed'}</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}{e.active?'':' (arhiveeritud)'}</option>)}</select></label>
+      <label>Periood<select name="scope" value={scope} onChange={e=>setScope(e.target.value)}><option value="month">Valitud kuu</option><option value="all">Kõik päevad</option></select></label>
+    </div>
+    {scope==='month'?<label>Kuu<input type="month" name="month" required min="2000-01" max="2099-12" defaultValue={history.month}/></label>:<input type="hidden" name="month" value={history.month}/>}
+    <button className="button primary">Näita tööpäevi</button>
+  </form>
+}
+
+export function PayrollWorkspace({history,month,today,employees,sites,customers,entries,running,now,saved,showSummary,payments,balances,paymentRequestId,showPayments,paymentSaved}: Props) {
   const [tab,setTab] = useState<'entry'|'summary'|'payments'|'employees'|'sites'>(showPayments ? 'payments' : showSummary ? 'summary' : 'entry')
   const [paymentEmployee,setPaymentEmployee]=useState('')
   const [edit,setEdit] = useState<TimeEntry>()
-  const [employeeFilter,setEmployeeFilter] = useState(''), [siteFilter,setSiteFilter] = useState('')
+  const employeeFilter=history.employeeId
+  const [siteFilter,setSiteFilter] = useState('')
+  const [returnToSummary,setReturnToSummary]=useState(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const visible = entries.filter(e=>(!employeeFilter || e.employee_id===employeeFilter) && (!siteFilter || (siteFilter==='none' ? !entrySiteIds(e).length : entrySiteIds(e).includes(siteFilter))))
   const total = totals(visible)
   const employeeName = (id:string) => employees.find(e=>e.id===id)?.name ?? 'Tööline'
   const siteName = (id:string) => {const site=sites.find(s=>s.id===id); return site ? `${site.name} · ${customers.find(c=>c.id===site.customer_id)?.name ?? ''}` : 'Objekt'}
   const openPayment = (id:string) => {setPaymentEmployee(id);setTab('payments');heading.current?.focus();window.scrollTo({top:0,behavior:'smooth'})}
-  const editEntry = (entry:TimeEntry) => {setEdit(entry);setTab('entry');heading.current?.focus();window.scrollTo({top:0,behavior:'smooth'})}
+  const editEntry = (entry:TimeEntry) => {setReturnToSummary(tab==='summary');setEdit(entry);setTab('entry');heading.current?.focus();window.scrollTo({top:0,behavior:'smooth'})}
+  const cancelEdit=()=>{setEdit(undefined);if(returnToSummary) setTab('summary')}
+  const periodLabel=history.allDays?'Kõigi päevade teenitud tasu':'Valitud kuu teenitud tasu'
   return <div className="page stack-lg payroll-page">
     <div><p className="eyebrow">Tööaja arvestus</p><h1 ref={heading} tabIndex={-1}>Tunnid ja palgad</h1><p className="muted">Üks või mitu töölist korraga. Algus, lõpp ja soovi korral lõuna ning objektid.</p></div>
     <div className="segmented payroll-tabs" aria-label="Tööaja vaated">{([['entry','Tööaeg'],['summary','Kokkuvõte'],['payments','Maksed'],['employees','Töölised'],['sites','Objektid']] as const).map(([id,label])=><button key={id} type="button" className={tab===id?'active':''} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</div>
+    <Link className="button secondary" href={payrollHistoryUrl({month,employeeId:history.employeeId,allDays:true})}>Inimese tööpäevad · vaata ja muuda</Link>
     <section hidden={tab!=='entry'} className="stack">
-      <RunningWork running={running} employees={employees} sites={sites} now={now} onEdit={editEntry}/>
-      {!employees.some(e=>e.active) && !edit ? <div className="form-card stack"><h2>Lisa esimene tööline</h2><p>Vaja on ainult nime ja tunnihinda. Töölisele ei ole vaja kasutajakontot.</p><EmployeeForm/></div> : <TimeForm key={edit?.id ?? 'new'} employees={employees} sites={sites} customers={customers} running={running} now={now} date={month===today.slice(0,7)?today:`${month}-01`} entry={edit} onCancel={()=>setEdit(undefined)}/>}
+      {!edit && <RunningWork running={running} employees={employees} sites={sites} now={now} onEdit={editEntry}/>}
+      {edit && returnToSummary && <button type="button" className="button secondary" onClick={cancelEdit}>Tagasi tööpäevade juurde</button>}
+      {!employees.some(e=>e.active) && !edit ? <div className="form-card stack"><h2>Lisa esimene tööline</h2><p>Vaja on ainult nime ja tunnihinda. Töölisele ei ole vaja kasutajakontot.</p><EmployeeForm/></div> : <TimeForm key={edit?.id ?? 'new'} employees={employees} sites={sites} customers={customers} running={running} now={now} date={month===today.slice(0,7)?today:`${month}-01`} entry={edit} returnHistory={edit && returnToSummary ? history : undefined} onCancel={cancelEdit}/>}
       {edit?.end_minute===null && <DeleteEntry entry={edit} onDeleted={()=>setEdit(undefined)}/>}
       <div className="payroll-buttons"><button type="button" className="button secondary" onClick={()=>setTab('employees')}>+ Tööline</button><button type="button" className="button secondary" onClick={()=>setTab('sites')}>+ Objekt</button></div>
     </section>
@@ -192,25 +213,27 @@ export function PayrollWorkspace({month,today,employees,sites,customers,entries,
     {tab==='summary' && <>
       {saved && <div className="alert success" role="status">Tööaeg salvestatud.</div>}
       <section className="form-card stack">
-        <form method="get" action="/manager/time" className="payroll-month"><label>Kuu<input type="month" name="month" required min="2000-01" max="2099-12" defaultValue={month}/></label><input type="hidden" name="view" value="summary"/><button className="button secondary">Näita</button></form>
-        <div className="form-grid two"><label>Tööline<select value={employeeFilter} onChange={e=>setEmployeeFilter(e.target.value)}><option value="">Kõik töölised</option>{employees.map(e=><option value={e.id} key={e.id}>{e.name}{e.active?'':' (arhiveeritud)'}</option>)}</select></label><label>Objekt<select value={siteFilter} onChange={e=>setSiteFilter(e.target.value)}><option value="">Kõik objektid</option><option value="none">Objektita</option>{sites.map(s=><option value={s.id} key={s.id}>{siteName(s.id)}</option>)}</select></label></div>
+        <h2>{history.allDays?'Inimese tööpäevad':'Tööaja kokkuvõte'}</h2>
+        <HistoryFilters history={history} employees={employees}/>
+        <label>Objekt<select value={siteFilter} onChange={e=>setSiteFilter(e.target.value)}><option value="">Kõik objektid</option><option value="none">Objektita</option>{sites.map(s=><option value={s.id} key={s.id}>{siteName(s.id)}</option>)}</select></label>
+        {history.allDays && <p className="muted">Vali inimene ja vajuta „Näita tööpäevi”. Näed kõiki tema lõpetatud tööpäevi, ka varasematest kuudest. Päeva parandamiseks vajuta „Muuda”.</p>}
       </section>
-      <div className="metrics-grid"><div className="metric-card"><span>Töötunde kokku</span><strong>{hours(total.minutes)}</strong></div><div className="metric-card"><span>Kuu teenitud tasu</span><strong>{euros(total.cents)}</strong><small>Makse ei arvestata</small></div><div className="metric-card"><span>Kirjeid</span><strong>{visible.length}</strong></div></div>
+      <div className="metrics-grid"><div className="metric-card"><span>Töötunde kokku</span><strong>{hours(total.minutes)}</strong></div><div className="metric-card"><span>{history.allDays?'Teenitud tasu':'Kuu teenitud tasu'}</span><strong>{euros(total.cents)}</strong><small>Makse ei arvestata</small></div><div className="metric-card"><span>Kirjeid</span><strong>{visible.length}</strong></div></div>
       <p className="muted">Öötöö arvestatakse alguskuupäeva kuusse. Summad liidetakse kirjete kaupa sendi täpsusega.</p>
       {siteFilter && <p className="muted">Objektifilter näitab seotud tööajakirjeid tervikuna. Tunde ja palka objektide vahel ei jagata.</p>}
       <PaymentBalances employees={employees.filter(e=>!employeeFilter||e.id===employeeFilter)} balances={balances} onPayment={openPayment}/>
-      <section className="detail-card"><h2>Valitud kuu teenitud tasu</h2>{groupedTotals(visible,'employee_id').map(g=><div className="payroll-total-row" key={g.id}><strong>{employeeName(g.id)}</strong><span>{hours(g.minutes)}</span><b>{euros(g.cents)}</b></div>)}{!visible.length && <p className="muted">Valitud kuus ja filtritega kirjeid pole.</p>}</section>
-      <section className="stack"><h2>Tööajakirjed</h2>{visible.map(e=><article className="detail-card stack" key={e.id}>
+      <section className="detail-card"><h2>{periodLabel}</h2>{groupedTotals(visible,'employee_id').map(g=><div className="payroll-total-row" key={g.id}><strong>{employeeName(g.id)}</strong><span>{hours(g.minutes)}</span><b>{euros(g.cents)}</b></div>)}{!visible.length && <p className="muted">Valitud inimese, perioodi ja filtritega kirjeid pole.</p>}</section>
+      <section className="stack"><h2>{employeeFilter?`${employeeName(employeeFilter)} · tööpäevad`:'Tööajakirjed'}</h2>{visible.map((e,index)=><div className="stack" key={e.id}>{history.allDays && (index===0 || visible[index-1].work_date.slice(0,7)!==e.work_date.slice(0,7)) && <h3>{new Date(`${e.work_date.slice(0,7)}-15T12:00:00Z`).toLocaleDateString('et-EE',{month:'long',year:'numeric'})}</h3>}<article className="detail-card stack">
         <div className="payroll-entry-heading"><div><strong>{employeeName(e.employee_id)}</strong><p className="muted">{entrySiteIds(e).map(siteName).join(' · ') || 'Objektita'}</p></div><strong>{euros(e.wage_cents ?? 0)}</strong></div>
         <p>{e.work_date.split('-').reverse().join('.')} · {clock(e.start_minute)}–{clock(e.end_minute ?? 0)}{e.next_day?' (+1 päev)':''} · paus {e.break_minutes} min</p>
         <p>{hours(e.paid_minutes ?? 0)} × {euros(e.hourly_rate_cents)}/h{e.note ? ` · ${e.note}` : ''}</p>
         <div className="payroll-buttons"><button className="button secondary" type="button" onClick={()=>editEntry(e)}>Muuda</button><DeleteEntry entry={e}/></div>
-      </article>)}{!visible.length && <div className="empty">Tööaegu veel ei ole. Alusta vaates „Tööaeg”.</div>}</section>
+      </article></div>)}{!visible.length && <div className="empty">{history.allDays && !employeeFilter?'Vali kõigepealt inimene.':'Valitud inimese ja perioodi tööpäevi ei leitud.'}</div>}</section>
     </>}
     {tab==='employees' && <>
       <section className="form-card stack"><h2>Lisa tööline</h2><EmployeeForm/></section>
       <p className="muted">Tunnihinna muudatus kehtib uutele kirjetele. Arhiveerimiseks eemalda linnuke „Aktiivne tööline”; varasem arvestus säilib.</p>
-      {employees.map(e=><details className="detail-card" key={e.id}><summary>{e.name} · {euros(e.hourly_rate_cents)}/h{e.active?'':' · arhiveeritud'}</summary><div className="top-gap"><EmployeeForm employee={e}/></div></details>)}
+      {employees.map(e=><details className="detail-card" key={e.id}><summary>{e.name} · {euros(e.hourly_rate_cents)}/h{e.active?'':' · arhiveeritud'}</summary><div className="top-gap stack"><Link className="button primary" href={payrollHistoryUrl({month,employeeId:e.id,allDays:true})}>Vaata ja muuda kõiki tööpäevi</Link><EmployeeForm employee={e}/></div></details>)}
     </>}
     {tab==='sites' && <><section className="form-card stack"><h2>Lisa objekt</h2><p className="muted">Siin on samad objektid, mida kasutad tööde juures.</p><SiteForm customers={customers}/></section><section className="detail-card stack"><h2>Olemasolevad objektid</h2>{sites.map(s=><p key={s.id}>{siteName(s.id)}{s.active?'':' · arhiveeritud'}</p>)}</section></>}
   </div>

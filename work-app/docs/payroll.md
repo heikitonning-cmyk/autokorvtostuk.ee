@@ -39,3 +39,9 @@ A stable draft UUID makes retries idempotent. Submitting the same ID with identi
 Apply `20261107063549_payroll_payments.sql` before deploying this update. The payment table uses the same active-manager RLS as wages. `save_payroll_payment` and `payroll_balances` use SECURITY INVOKER with no anonymous/public execution. No existing time entries or rates are migrated or overwritten.
 
 The SQL tests cover cross-month settlement, partial payments, advances, aggregate accuracy with multiple wages/payments, request retries, corrections, cancellation, stale versions, archived employees, bounds and role access. Client calculation tests cover exact amounts, previews and independent employee balances.
+
+## Employee workday history
+
+“Inimese tööpäevad · vaata ja muuda” opens the summary with **Kõik päevad** selected. Choose an employee (including archived employees) to load all their finished records across months. The database query is paginated, restricted to that employee, and omits month bounds only in all-days mode. With no employee selected, all-days mode loads no finished records and asks for a person. Monthly summaries remain available.
+
+Each record retains its own “Muuda” action, original hourly rate, version and overlap validation. History entries are grouped by month and ordered newest first. Saving or cancelling an edit returns to the same employee/history context rather than jumping to the edited record's month. This feature does not bulk-rewrite wages or change historical hourly rates. The “Töölised” employee details also link directly to all their workdays.
