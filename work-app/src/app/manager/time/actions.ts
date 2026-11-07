@@ -1,5 +1,6 @@
 'use server'
 
+import { payrollHistoryParams, payrollHistoryUrl } from '@/lib/payroll-history'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/session'
@@ -43,6 +44,10 @@ export async function saveTimeEntry(_previous: ActionState, form: FormData): Pro
   } catch { return { error: 'Ühendus katkes. Kontrolli enne uut salvestamist, kas kirje jõudis nimekirja.' } }
   revalidatePath('/manager/time')
   if (mode === 'start') return { success: `Töö alustatud: ${employeeIds.length} töölist.`, savedId: String(Date.now()) }
+  if(id && value(form,'returnView')==='summary') {
+    const history=payrollHistoryParams({month:value(form,'returnMonth'),employee:value(form,'returnEmployee'),scope:value(form,'returnScope')},date.slice(0,7))
+    redirect(payrollHistoryUrl(history,String(Date.now())))
+  }
   redirect(`/manager/time?month=${date.slice(0, 7)}&saved=${Date.now()}`)
 }
 
