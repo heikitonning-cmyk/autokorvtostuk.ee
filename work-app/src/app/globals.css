@@ -33,6 +33,21 @@
 .payroll-entry-heading { display: flex; justify-content: space-between; gap: 16px; }
 .payroll-entry-heading > strong { white-space: nowrap; }
 .payroll-page input, .payroll-page select { min-width: 0; max-width: 100%; }
+.payroll-selection-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.payroll-choices { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:8px; max-height:320px; overflow:auto; }
+.payroll-choice { display:flex!important; align-items:center; gap:12px; border:1px solid var(--line); border-radius:12px; padding:12px; min-height:60px; margin:0!important; overflow-wrap:anywhere; }
+.payroll-choice.selected { border-color:#e3b42e; background:#fffbeb; }
+.payroll-choice input { width:22px!important; height:22px; min-height:22px; flex:0 0 22px; padding:0; accent-color:#111827; }
+.payroll-choice span { min-width:0; }
+.payroll-choice small { display:block; color:var(--muted); font-weight:400; margin-top:4px; }
+.payroll-site-picker { border:1px solid var(--line); border-radius:12px; padding:14px; }
+.payroll-site-picker summary { cursor:pointer; font-weight:600; min-height:24px; }
+.payroll-preview-line { display:block; margin-top:8px; font-size:14px; font-weight:500; }
+.payroll-running { border-top:4px solid var(--success); }
+.payroll-running-row { border:1px solid #a6e3bf; border-radius:14px; padding:10px; background:#f6fef9; }
+.payroll-running-row .payroll-choice { border:0; padding:4px; }
+.payroll-running-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px; }
+.payroll-running-actions > strong { flex:1; font-variant-numeric:tabular-nums; }
 @media (max-width: 600px) {
   .bottom-nav a { font-size: 11px; padding-left: 2px; padding-right: 2px; }
   .payroll-tabs button { padding: 10px 6px; font-size: 14px; }

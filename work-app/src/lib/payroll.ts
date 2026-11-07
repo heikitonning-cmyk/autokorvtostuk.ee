@@ -2,9 +2,10 @@
 export type Employee = { id: string; name: string; hourly_rate_cents: number; active: boolean; updated_at: string }
 export type PayrollSite = { id: string; name: string; customer_id: string; active: boolean }
 export type TimeEntry = {
-  id: string; employee_id: string; site_id: string; work_date: string
-  start_minute: number; end_minute: number; next_day: boolean; break_minutes: number
-  hourly_rate_cents: number; paid_minutes: number; wage_cents: number; note: string
+  id: string; employee_id: string; site_id: string | null; work_date: string
+  sites?: { site_id: string }[]
+  start_minute: number; end_minute: number | null; next_day: boolean; break_minutes: number
+  hourly_rate_cents: number; paid_minutes: number | null; wage_cents: number | null; note: string
   updated_at: string
 }
 export type ActionState = { error?: string; success?: string; savedId?: string; savedVersion?: string }
@@ -53,6 +54,20 @@ export function tallinnDate(now = new Date()): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Tallinn', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }
 
+export function tallinnClock(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Tallinn', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now)
+}
+
+export function entrySiteIds(entry: Pick<TimeEntry, 'site_id' | 'sites'>): string[] {
+  return [...new Set([...(entry.site_id ? [entry.site_id] : []), ...(entry.sites ?? []).map(s => s.site_id)])]
+}
+
+/** Match entered wall-clock minutes, including the existing overnight convention. */
+export function runningMinutes(entry: Pick<TimeEntry, 'work_date' | 'start_minute'>, now: Date): number {
+  const days = (Date.parse(`${tallinnDate(now)}T00:00:00Z`) - Date.parse(`${entry.work_date}T00:00:00Z`)) / 86400000
+  return Math.max(0, days * 1440 + clockMinutes(tallinnClock(now)) - entry.start_minute)
+}
+
 export function monthRange(value: string) {
   if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(value)) throw new Error('Vali korrektne kuu.')
   const [y, m] = value.split('-').map(Number)
@@ -61,14 +76,16 @@ export function monthRange(value: string) {
 }
 
 export function totals(entries: Pick<TimeEntry, 'paid_minutes' | 'wage_cents'>[]) {
-  return entries.reduce((sum, e) => ({ minutes: sum.minutes + e.paid_minutes, cents: sum.cents + e.wage_cents }), { minutes: 0, cents: 0 })
+  return entries.reduce((sum, e) => ({ minutes: sum.minutes + (e.paid_minutes ?? 0), cents: sum.cents + (e.wage_cents ?? 0) }), { minutes: 0, cents: 0 })
 }
 
 export function groupedTotals(entries: TimeEntry[], key: 'employee_id' | 'site_id') {
   const groups = new Map<string, { minutes: number; cents: number }>()
   for (const e of entries) {
-    const sum = groups.get(e[key]) ?? { minutes: 0, cents: 0 }
-    groups.set(e[key], { minutes: sum.minutes + e.paid_minutes, cents: sum.cents + e.wage_cents })
+    const id = e[key]
+    if (!id || e.paid_minutes === null || e.wage_cents === null) continue
+    const sum = groups.get(id) ?? { minutes: 0, cents: 0 }
+    groups.set(id, { minutes: sum.minutes + e.paid_minutes, cents: sum.cents + e.wage_cents })
   }
   return [...groups].map(([id, sum]) => ({ id, ...sum }))
 }

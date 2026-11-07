@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateTime, parseRate, wageCents, validDate, monthRange, tallinnDate, totals, groupedTotals, type TimeEntry } from './payroll.ts'
+import { calculateTime, parseRate, wageCents, validDate, monthRange, tallinnDate, tallinnClock, runningMinutes, entrySiteIds, totals, groupedTotals, type TimeEntry } from './payroll.ts'
 
 test('08–17 less 30 minutes at 12.50 equals 8h30 and 106.25', () => {
   const t = calculateTime('08:00', '17:00', '30')
@@ -39,4 +39,20 @@ test('summaries add saved entry cents, preserving different historical rates', (
   assert.deepEqual(totals(rows), {minutes:62, cents:2005})
   assert.deepEqual(groupedTotals(rows,'employee_id'), [{id:'a',minutes:2,cents:5},{id:'b',minutes:60,cents:2000}])
   assert.deepEqual(groupedTotals(rows,'site_id'), [{id:'s1',minutes:61,cents:2002},{id:'s2',minutes:1,cents:3}])
+})
+
+test('running timers span midnight and month boundaries in Tallinn time', () => {
+  assert.equal(tallinnClock(new Date('2026-11-06T23:30:00Z')),'01:30')
+  assert.equal(tallinnClock(new Date('2026-07-01T05:15:00Z')),'08:15')
+  assert.equal(runningMinutes({work_date:'2026-10-31',start_minute:23*60}, new Date('2026-10-31T23:30:00Z')),150)
+})
+test('optional multiple site labels cannot inflate totals; running wages are excluded', () => {
+  const rows=[
+    {employee_id:'a',site_id:'s1',sites:[{site_id:'s1'},{site_id:'s2'}],paid_minutes:60,wage_cents:1200},
+    {employee_id:'a',site_id:null,sites:[],paid_minutes:null,wage_cents:null},
+  ] as TimeEntry[]
+  assert.deepEqual(entrySiteIds(rows[0]),['s1','s2'])
+  assert.deepEqual(entrySiteIds(rows[1]),[])
+  assert.deepEqual(totals(rows),{minutes:60,cents:1200})
+  assert.deepEqual(groupedTotals(rows,'employee_id'),[{id:'a',minutes:60,cents:1200}])
 })

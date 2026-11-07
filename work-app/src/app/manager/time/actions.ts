@@ -8,37 +8,60 @@ import { calculateTime, parseRate, validDate, type ActionState } from '@/lib/pay
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? '').trim()
 const uuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
-function dbError(error: { code?: string }): ActionState {
+function dbError(error: { code?: string; message?: string }): ActionState {
+  if (error.code === 'P0001') return { error: 'Kirjet on vahepeal muudetud või töö juba lõpetatud. Värskenda nimekirja ja proovi uuesti.' }
+  if (error.code === 'P0002') return { error: 'Tööaeg peab olema vähemalt 1 minut ja kuni 24 tundi ning lõunapaus tööajast lühem. Vajadusel paranda algus või lõpp nupuga „Muuda”.' }
   if (error.code === '23P01' || error.code === '23505') return { error: 'Sellel töölisel on samal ajal juba töö kirjas. Kontrolli olemasolevaid tunde.' }
-  if (error.code === '23514' || error.code === '23503') return { error: 'Kontrolli tööaega ning vali aktiivne tööline ja objekt.' }
+  if (error.code === '23514' || error.code === '23503') return { error: 'Kontrolli tööaega ning tööliste ja valitud objektide andmeid.' }
   return { error: 'Salvestamine ei õnnestunud. Sinu sisestus on alles; proovi uuesti.' }
 }
 
 export async function saveTimeEntry(_previous: ActionState, form: FormData): Promise<ActionState> {
   await requireUser('manager')
-  const id = value(form, 'id'), employeeId = value(form, 'employeeId'), siteId = value(form, 'siteId')
+  const id = value(form, 'id')
+  const employeeIds = [...new Set(form.getAll('employeeId').map(String))]
+  const siteIds = [...new Set(form.getAll('siteId').map(String).filter(Boolean))]
+  const mode = value(form, 'mode') === 'start' && !id ? 'start' : 'manual'
   const date = value(form, 'date'), note = value(form, 'note'), version = value(form, 'version')
-  if ((id && !uuid(id)) || !uuid(employeeId) || !uuid(siteId)) return { error: 'Vali tööline ja objekt.' }
-  if (!validDate(date)) return { error: 'Sisesta korrektne kuupäev (2000–2099).' }
+  if ((id && !uuid(id)) || !employeeIds.length || employeeIds.length > 100 || employeeIds.some(e=>!uuid(e)) || siteIds.length > 100 || siteIds.some(s=>!uuid(s)) || (id && employeeIds.length !== 1)) return { error: 'Vali vähemalt üks tööline (kuni 100 korraga).' }
+  if (mode === 'manual' && !validDate(date)) return { error: 'Sisesta korrektne kuupäev (2000–2099).' }
   if (note.length > 1000) return { error: 'Märkus võib olla kuni 1000 tähemärki.' }
   let time
   const nextDay = form.get('nextDay') === 'on'
-  try { time = calculateTime(value(form, 'start'), value(form, 'end'), value(form, 'lunch'), nextDay) }
+  try { if (mode === 'manual') time = calculateTime(value(form, 'start'), value(form, 'end'), value(form, 'lunch'), nextDay) }
   catch (e) { return { error: e instanceof Error ? e.message : 'Kontrolli tööaega.' } }
   const supabase = await createClient()
-  const record = { employee_id: employeeId, site_id: siteId, work_date: date, start_minute: time.startMinute,
-    end_minute: time.endMinute, next_day: nextDay, break_minutes: time.breakMinutes, note }
   try {
-    // The database captures the rate and computes wages; never trust browser totals.
-    const query = id
-      ? supabase.from('payroll_entries').update(record).eq('id', id).eq('updated_at', version)
-      : supabase.from('payroll_entries').insert(record)
-    const { data, error } = await query.select('id').maybeSingle()
+    // One transaction for the whole crew and its optional site labels.
+    const { error } = await supabase.rpc('save_payroll_entries', {
+      p_employee_ids: employeeIds, p_site_ids: siteIds, p_work_date: mode === 'manual' ? date : null,
+      p_start_minute: time?.startMinute ?? null, p_end_minute: time?.endMinute ?? null,
+      p_next_day: nextDay, p_break_minutes: time?.breakMinutes ?? 0, p_note: note,
+      p_entry_id: id || null, p_expected_version: version || null, p_mode: mode,
+    })
     if (error) return dbError(error)
-    if (!data) return { error: 'Kirjet on vahepeal muudetud või kustutatud. Laadi leht uuesti ja kontrolli andmeid.' }
   } catch { return { error: 'Ühendus katkes. Kontrolli enne uut salvestamist, kas kirje jõudis nimekirja.' } }
   revalidatePath('/manager/time')
+  if (mode === 'start') return { success: `Töö alustatud: ${employeeIds.length} töölist.`, savedId: String(Date.now()) }
   redirect(`/manager/time?month=${date.slice(0, 7)}&saved=${Date.now()}`)
+}
+
+export async function finishTimeEntries(_previous: ActionState, form: FormData): Promise<ActionState> {
+  await requireUser('manager')
+  let entries: { id: string; updated_at: string }[]
+  try {
+    entries = JSON.parse(value(form, 'entries'))
+    if (!Array.isArray(entries) || !entries.length || entries.length > 100 || entries.some(e=>!e || !uuid(e.id) || typeof e.updated_at !== 'string' || !Number.isFinite(Date.parse(e.updated_at)))) throw new Error()
+  } catch { return { error: 'Vali lõpetatavad töölised.' } }
+  const lunch = value(form, 'lunch') || '0'
+  if (!/^\d{1,4}$/.test(lunch) || Number(lunch) > 1439) return { error: 'Sisesta lõunapaus minutites (0–1439).' }
+  try {
+    const db = await createClient()
+    const { error } = await db.rpc('finish_payroll_entries', { p_entries: entries, p_break_minutes: Number(lunch) })
+    if (error) return dbError(error)
+  } catch { return { error: 'Ühendus katkes. Värskenda nimekirja ja kontrolli, kas töö sai lõpetatud.' } }
+  revalidatePath('/manager/time')
+  return { success: `Töö lõpetatud: ${entries.length} töölist. Tunnid ja palk lisati kokkuvõttesse.`, savedId: String(Date.now()) }
 }
 
 export async function deleteTimeEntry(_previous: ActionState, form: FormData): Promise<ActionState> {
