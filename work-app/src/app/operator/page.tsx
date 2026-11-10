@@ -6,6 +6,7 @@ import { jobPhoneHref } from '@/lib/job-contact'
 import { wazeUrl } from '@/lib/job-stops'
 import { formatPlannedTime } from '@/lib/jobs'
 import { StatusBadge } from '@/components/StatusBadge'
+import { orderWorkPlanDates } from '@/lib/dashboard'
 import { isActiveJob, isCompletedJob } from '@/lib/status'
 import type { JobStatus } from '@/lib/domain'
 
@@ -71,9 +72,9 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     <section>
       <div className="section-title"><h2>{view === 'history' ? 'Tööde ajalugu' : view === 'calendar' ? 'Kalender' : 'Tööplaan'}</h2></div>
       <div className="segmented"><Link className={view === 'active' ? 'active' : ''} href="/operator">Aktiivsed</Link><Link className={view === 'history' ? 'active' : ''} href="?view=history">Ajalugu</Link><Link className={view === 'calendar' ? 'active' : ''} href="?view=calendar">Kalender</Link></div>
-      <div className="calendar-list">{[...groups.entries()].map(([date, dayJobs]) => <section key={date}>
+      <div className="calendar-list">{orderWorkPlanDates(groups.keys(), view, tallinnDateKey()).map(date => <section key={date}>
         <h2>{longDate(date)}</h2>
-        <div className="job-list">{dayJobs.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>
+        <div className="job-list">{groups.get(date)?.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>
       </section>)}
       {unscheduled.length > 0 && <section>
         <h2>Aeg määramata</h2>

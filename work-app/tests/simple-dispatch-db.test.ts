@@ -32,7 +32,7 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
     create policy shared_read on public.jobs for select to authenticated using(true);
     create policy legacy_update on public.jobs for update to authenticated using(operator_id=auth.uid()) with check(operator_id=auth.uid());`)
   await db.exec('begin;'+read('20261107052811_employee_time_wages.sql')+'commit;')
-  for(const file of ['20261107061650_worker_first_payroll.sql','20261107063549_payroll_payments.sql','20261110095155_simple_dispatch.sql']) await db.exec(read(file))
+  for(const file of ['20261107061650_worker_first_payroll.sql','20261107063549_payroll_payments.sql','20261110095155_simple_dispatch.sql','20261110104500_require_driver_payroll.sql']) await db.exec(read(file))
   const login=async(id:string)=>db.exec(`reset role;set role authenticated;select set_config('request.jwt.claim.sub','${id}',false)`)
   await login(manager)
   await db.exec(`insert into public.payroll_employees(id,name,hourly_rate_cents) values('${a}','Payroll driver',1200),('${b}','Other driver',1500);`)
@@ -42,19 +42,24 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
   const job=async(id:string)=>(await db.query<any>('select *,updated_at::text updated_at from public.jobs where id=$1',[id])).rows[0]
   const entry=async(id:string)=>(await db.query<any>('select *,updated_at::text updated_at from public.payroll_entries where job_id=$1',[id])).rows[0]
 
-  await t.test('schedule alone never creates wages and driver need not have a login',async()=>{
-    const id=randomUUID();await save(id)
+  await t.test('a selected payroll driver requires hours; unassigned work can be scheduled',async()=>{
+    const id=randomUUID()
+    await assert.rejects(save(id),{code:'23514'})
+    assert.equal(await job(id),undefined)
+    await save(id,{...payload,driver_employee_id:''})
     const saved=await job(id)
-    assert.equal(saved.driver_name,'Payroll driver');assert.equal(saved.operator_id,null);assert.equal(saved.status,'kinnitatud')
+    assert.equal(saved.driver_name,null);assert.equal(saved.operator_id,null);assert.equal(saved.status,'kinnitatud')
     assert.equal(new Date(saved.start_planned).toISOString(),'2026-11-10T08:00:00.000Z')
     assert.equal(await entry(id),undefined)
+    await assert.rejects(save(id,payload,null,saved.updated_at),{code:'23514'})
+    assert.equal((await job(id)).driver_name,null)
   })
   await t.test('departure is independent; exact retries do not duplicate or overwrite; balance uses paid minutes',async()=>{
     const id=randomUUID(),hours=time('2026-11-10');await save(id,payload,hours)
     const first=await job(id),wages=await entry(id)
     assert.equal(wages.paid_minutes,210);assert.equal(wages.wage_cents,4200)
     await save(id,payload,hours);assert.deepEqual(await entry(id),wages)
-    await save(id,{...payload,address:'Changed'},null,first.updated_at)
+    await save(id,{...payload,address:'Changed'},hours,first.updated_at,wages.updated_at)
     await save(id,payload,hours);assert.equal((await job(id)).address,'Changed')
     await db.query('select public.save_payroll_payment($1,$2,$3,$4,$5)',[randomUUID(),a,'2026-11-10',1000,'Paid'])
     const balances=(await db.query<any>('select * from public.payroll_balances() where employee_id=$1',[a])).rows[0]
@@ -62,7 +67,7 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
   })
   await t.test('overlap rolls back job creation and also existing job edits',async()=>{
     const id=randomUUID();await assert.rejects(save(id,payload,time('2026-11-10')),{code:'23P01'});assert.equal(await job(id),undefined)
-    await save(id);const before=await job(id)
+    await save(id,{...payload,driver_employee_id:''});const before=await job(id)
     await assert.rejects(save(id,{...payload,address:'Must roll back'},time('2026-11-10'),before.updated_at),{code:'23P01'})
     assert.deepEqual(await job(id),before)
   })
@@ -96,7 +101,7 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
     await save(id,payload,{...time('2026-11-13'),start_minute:1320,end_minute:420,next_day:true},(await job(id)).updated_at,(await entry(id)).updated_at)
   })
   await t.test('operator and anonymous cannot mutate driver or payroll data',async()=>{
-    await login(manager);const id=randomUUID();await save(id,{...payload,driver_employee_id:b})
+    await login(manager);const id=randomUUID();await save(id,{...payload,driver_employee_id:b},time('2026-11-16'))
     await db.query('update public.jobs set operator_id=$2 where id=$1',[id,operator])
     await login(operator)
     await assert.rejects(save(randomUUID()),{code:'42501'})
