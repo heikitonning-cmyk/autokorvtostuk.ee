@@ -35,6 +35,6 @@ test('optimization UI is explicit, explains fallback quality and preserves manua
   assert.match(panel, /Ühte või mitut aadressi ei õnnestunud kaardilt leida/)
   assert.doesNotMatch(panel, /useEffect[\s\S]*proposeRouteOptimization/)
   assert.match(editor, /RouteOptimizationPanel/)
-  assert.match(operator, /RouteOptimizationPanel/)
-  assert.match(manager, /RouteOptimizationPanel/)
+  assert.doesNotMatch(operator, /RouteOptimizationPanel/)
+  assert.doesNotMatch(manager, /RouteOptimizationPanel/)
 })

@@ -75,3 +75,14 @@ a.metric-card:focus-visible,a.attention-card:focus-visible,a.capacity-chip:focus
 .dashboard-jobs { scroll-margin-top:88px; }
 .filter-banner { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
 .job-contact-actions .button { min-height:48px; text-align:center; }
+
+/* Compact dispatch: optional address book and separately entered paid time. */
+.simple-job-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.simple-job-form { max-width: 620px; width: 100%; }
+.simple-address-picker summary { color: var(--muted, #64748b); cursor: pointer; font-size: .95rem; }
+.simple-time-panel { padding: 16px; border: 1px solid #dce3ea; border-radius: 16px; background: #f8fafc; }
+.simple-time-panel summary { cursor: pointer; font-weight: 650; }
+.simple-check { display: flex; align-items: center; gap: 10px; flex-direction: row; }
+.simple-check input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 20px; }
+.simple-job-fields:disabled { opacity: .7; }
+.simple-job-description { white-space: pre-wrap; overflow-wrap: anywhere; }

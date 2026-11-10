@@ -23,30 +23,25 @@ test('v1 contains the critical manager and operator routes', () => {
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
 })
 
-test('new job form exposes date, time and manager-selected operator', () => {
+test('new and edit routes use compact payroll-driver dispatch', () => {
   const page = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
-  assert.match(page, /name="plannedDate"[^>]*type="date"/)
-  assert.match(page, /name="plannedTime"[^>]*type="time"/)
-  assert.match(page, /name="operatorId"/)
+  const form = readFileSync(resolve(root, 'src/components/SimpleJobForm.tsx'), 'utf8')
+  assert.match(page, /SimpleJobForm/)
+  assert.match(form, /name="date" type="date"/)
+  assert.match(form, /name="time" type="time"/)
+  assert.match(form, /name="driver"/)
+  assert.doesNotMatch(form, /operatorId|JobPricingFields|JobStopsEditor/)
 })
 
-test('manager and worker can open the same edit form for unfinished jobs', () => {
-  const managerDetail = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
-  const workerDetail = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
+test('only manager edits the compact work form; old driver edit and finish links redirect', () => {
   const managerEdit = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/edit/page.tsx'), 'utf8')
-  const workerEdit = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/edit/page.tsx'), 'utf8')
-  const form = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
-  assert.match(managerDetail, /Muuda/)
-  assert.match(managerDetail, /\/manager\/jobs\/\$\{job\.id\}\/edit/)
-  assert.match(workerDetail, /Muuda/)
-  assert.match(workerDetail, /\/operator\/jobs\/\$\{job\.id\}\/edit/)
-  assert.match(managerEdit, /JobEditForm/)
-  assert.match(workerEdit, /JobEditForm/)
-  assert.match(form, /name="plannedDate"[^>]*type="date"/)
-  assert.match(form, /name="plannedTime"[^>]*type="time"/)
-  assert.match(form, /JobLocationFields/)
-  assert.match(form + readFileSync(resolve(root, 'src/components/JobPricingFields.tsx'), 'utf8'), /name="estimatedHours"/)
-  assert.match(form, /Salvesta muudatused/)
+  assert.match(managerEdit, /requireUser\('manager'\)/)
+  assert.match(managerEdit, /SimpleJobForm/)
+  for (const route of ['edit','finish']) {
+    const page = readFileSync(resolve(root, `src/app/operator/jobs/[id]/${route}/page.tsx`), 'utf8')
+    assert.match(page, /redirect/)
+    assert.doesNotMatch(page, /JobEditForm|PhotoUploader|finishJob/)
+  }
 })
 
 test('job reference data includes customer sites', () => {
@@ -56,20 +51,12 @@ test('job reference data includes customer sites', () => {
   assert.match(queries, /site:customer_sites/)
 })
 
-test('job forms support customer site selection and new site entry', () => {
-  const component = readFileSync(resolve(root, 'src/components/JobLocationFields.tsx'), 'utf8')
-  const newPage = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
-  const edit = readFileSync(resolve(root, 'src/components/JobEditForm.tsx'), 'utf8')
-  assert.match(component, /name="customerId"/)
-  assert.match(component, /name="siteId"/)
-  assert.match(component, /newSiteName/)
-  assert.match(component, /newSiteAddress/)
-  assert.match(component, /\+ Lisa uus asukoht/)
-  assert.match(component, /customer_id/)
-  assert.match(component, /setObjectName/)
-  assert.match(component, /setAddress/)
-  assert.match(newPage, /JobLocationFields/)
-  assert.match(edit, /JobLocationFields/)
+test('compact form offers manual address and hides the optional address book', () => {
+  const form = readFileSync(resolve(root, 'src/components/SimpleJobForm.tsx'), 'utf8')
+  assert.match(form, /name="address"/)
+  assert.match(form, /<details className="simple-address-picker">/)
+  assert.match(form, /Näita ka Neste aadresse/)
+  assert.match(form, /visibleDispatchSites/)
 })
 
 test('address can be chosen from customer sites while remaining manually editable', () => {
@@ -81,16 +68,15 @@ test('address can be chosen from customer sites while remaining manually editabl
   assert.match(component, /site\.address/)
 })
 
-test('manager and worker job details expose address navigation', () => {
-  const manager = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
-  const worker = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
-  for (const page of [manager, worker]) {
-    assert.match(page, /https:\/\/www\.waze\.com\/ul\?q=/)
-    assert.match(page, /navigate=yes/)
-    assert.match(page, /JobContactActions/)
+test('both detail routes share navigation and contact without driver workflow controls', () => {
+  const details = readFileSync(resolve(root, 'src/components/SimpleJobDetails.tsx'), 'utf8')
+  assert.match(details, /JobContactActions/)
+  assert.match(details, /jobPhoneHref/)
+  assert.match(details, /wazeUrl/)
+  for (const role of ['manager','operator']) {
+    const page = readFileSync(resolve(root, `src/app/${role}/jobs/[id]/page.tsx`), 'utf8')
+    assert.match(page, /SimpleJobDetails/)
   }
-  assert.match(manager, /job\.address/)
-  assert.match(worker, /job\.address/)
 })
 
 test('customer CRM lists and adds saved locations', () => {
@@ -105,11 +91,12 @@ test('customer CRM lists and adds saved locations', () => {
   assert.match(queries, /customer_sites\(id,name,address,active,requires_lift,source\)/)
 })
 
-test('worker shared work plan exposes edit for any editable job', () => {
+test('driver work plan exposes contact actions and details, without edits or timers', () => {
   const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
-  assert.match(page, /href=\{`\/operator\/jobs\/\$\{job\.id\}\/edit`\}/)
-  assert.match(page, />Muuda</)
-  assert.match(page, /Hõivatud/)
+  const details = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
+  assert.match(page, /JobContactActions/)
+  assert.match(page, /driver_name/)
+  assert.doesNotMatch(page + details, /\/edit|startJob|finishJob|PhotoUploader|MarkJobCompleted|ElapsedTimer/)
 })
 
 test('worker job controls use manager assignment instead of self-service', () => {
@@ -118,13 +105,12 @@ test('worker job controls use manager assignment instead of self-service', () =>
   assert.doesNotMatch(card, /Vabasta töö/)
 })
 
-test('worker landing page combines shared lift availability and work plan', () => {
+test('worker landing page shows the shared work plan and its history', () => {
   const page = readFileSync(resolve(root, 'src/app/operator/page.tsx'), 'utf8')
   const shell = readFileSync(resolve(root, 'src/components/AppShell.tsx'), 'utf8')
   const oldCalendar = readFileSync(resolve(root, 'src/app/operator/calendar/page.tsx'), 'utf8')
   assert.match(page, /getSharedLiftCalendar/)
-  assert.match(page, /freeCapacityDays/)
-  assert.match(page, /Vabad aknad · 7 päeva/)
+  assert.match(page, /Ajalugu/)
   assert.match(page, /Tööplaan/)
   assert.doesNotMatch(page, /VÕTA TÖÖ/)
   assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
