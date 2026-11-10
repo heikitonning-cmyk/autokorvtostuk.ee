@@ -205,3 +205,8 @@ test('Cloudflare OpenNext deployment is explicitly configured', () => {
   assert.match(openNext, /defineCloudflareConfig/)
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_.*ROUT/)
 })
+
+test('manager detail omits redundant confirmation and completion controls', () => {
+  const page = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
+  assert.doesNotMatch(page, /confirmJob|MarkJobCompleted|Kinnita töö|Märgi.*tehtuks/)
+})
