@@ -5,16 +5,12 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 
-test('active multi-stop job can append another stop and reorder pending work', () => {
+test('legacy stop tools remain available in code while compact pages omit them', () => {
   const editor = readFileSync(resolve(root, 'src/components/JobStopsEditor.tsx'), 'utf8')
-  const operator = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
-  const manager = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
+  const details = readFileSync(resolve(root, 'src/components/SimpleJobDetails.tsx'), 'utf8')
   assert.match(editor, /\+ Lisa peatus/)
-  assert.match(operator, /JobStopsEditor/)
-  assert.match(operator, /route_revision/)
-  assert.match(manager, /JobStopsEditor/)
-  assert.match(manager, /route_revision/)
-  assert.match(operator, /Marsruuti muudeti teises vaates/)
+  assert.match(details, /Lisa-aadressid/)
+  assert.doesNotMatch(details, /JobStopsEditor|ActiveStopCard/)
 })
 
 test('route endpoints can use Luige, saved customer sites or a manual address', () => {
@@ -32,7 +28,7 @@ test('pending stop has an optional stop-specific work description editor', () =>
   assert.match(actions, /update_job_stop_description/)
 })
 
-test('manager can correct terminal stop timing and note through a dedicated form', () => {
+test('legacy stop correction implementation is preserved but hidden from compact views', () => {
   const form = readFileSync(resolve(root, 'src/components/StopCorrectionForm.tsx'), 'utf8')
   const manager = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/page.tsx'), 'utf8')
   const operator = readFileSync(resolve(root, 'src/app/operator/jobs/[id]/page.tsx'), 'utf8')
@@ -40,6 +36,6 @@ test('manager can correct terminal stop timing and note through a dedicated form
   assert.match(form, /actualStart/)
   assert.match(form, /actualEnd/)
   assert.match(form, /completionNote/)
-  assert.match(manager, /StopCorrectionForm/)
+  assert.doesNotMatch(manager, /StopCorrectionForm/)
   assert.doesNotMatch(operator, /StopCorrectionForm/)
 })

@@ -168,7 +168,7 @@ export async function getSharedLiftCalendar(includeHistory = false) {
     const { data: claims, error: authError } = await supabase.auth.getClaims()
     if (authError || !claims?.claims?.sub) throw new Error('Sisselogimine on vajalik.')
     const data = await readAllPages((from, to) => supabase.from('jobs')
-      .select('id,object_name,address,description,status,planned_date,planned_time,planned_end_time,start_planned,end_planned,completed_at,operator_id,customer:customers(name),work_type:work_types(name)')
+      .select('id,object_name,address,description,status,planned_date,planned_time,planned_end_time,start_planned,end_planned,completed_at,operator_id,driver_employee_id,driver_name,dispatch_managed,contact_phone,website_booking_details,operator:users!jobs_operator_id_fkey(name),customer:customers(name,phone),work_type:work_types(name)')
       .neq('status', 'tuhistatud')
       .order('planned_date', { ascending: true, nullsFirst: false })
       .order('planned_time', { ascending: true, nullsFirst: false })
@@ -220,7 +220,7 @@ export async function getOperatorJob(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('jobs')
-    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), vehicle:vehicles(id,name,registration_number), job_photos(*), job_stops(*)')
+    .select('*, customer:customers(id,name,phone,email,billing_address), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(name), vehicle:vehicles(id,name,registration_number), job_photos(*), job_stops(*)')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -248,4 +248,21 @@ export async function getWorkTypes() {
 export async function getAssignableOperators() {
   const db=await createClient()
   return readAllPages<{id:string;name:string}>((a,b)=>db.from('users').select('id,name').in('role',['operator','manager']).eq('active',true).order('name').order('id').range(a,b))
+}
+
+
+export async function getDispatchReferences() {
+  const db = await createClient()
+  const [employees, sites] = await Promise.all([
+    readAllPages<any>((a,b) => db.from('payroll_employees').select('id,name,active,hourly_rate_cents').order('name').order('id').range(a,b)),
+    readAllPages<any>((a,b) => db.from('customer_sites').select('id,customer_id,name,address,source').eq('active',true).order('name').order('id').range(a,b)),
+  ])
+  return { employees, sites }
+}
+
+export async function getJobPayrollEntry(jobId: string) {
+  const db = await createClient()
+  const {data,error} = await db.from('payroll_entries').select('*').eq('job_id',jobId).maybeSingle()
+  if (error) throw error
+  return data
 }

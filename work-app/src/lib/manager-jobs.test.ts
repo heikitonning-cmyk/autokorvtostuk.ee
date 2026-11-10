@@ -34,5 +34,6 @@ test('manager can permanently delete a whole job from its detail page', () => {
   assert.match(actions, /requireUser\('manager'\)/)
   assert.match(actions, /from\('jobs'\)\.delete\(\)\.eq\('id', id\)/)
   assert.match(detail, /deleteJob/)
-  assert.match(detail, /Kustuta töö jäädavalt/)
+  assert.match(detail, /DeleteJobForm/)
+  assert.match(readFileSync(new URL('../components/DeleteJobForm.tsx', import.meta.url), 'utf8'), /Kustuta töö jäädavalt/)
 })
