@@ -19,8 +19,7 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
   const [plannedTime, setPlannedTime] = useState(job?.planned_time?.slice(0, 5) ?? '')
   const [phone, setPhone] = useState(job?.contact_phone ?? job?.website_booking_details?.phone ?? job?.customer?.phone ?? '')
   const [description, setDescription] = useState(job?.description ?? '')
-  const [workDate, setWorkDate] = useState(entry?.work_date ?? job?.planned_date ?? initialDate)
-  const [saveTime, setSaveTime] = useState(false)
+  const [workDate, setWorkDate] = useState<string | null>(entry?.work_date ?? null)
   const [departure, setDeparture] = useState(minuteTime(entry?.start_minute))
   const [finish, setFinish] = useState(minuteTime(entry?.end_minute))
   const [pause, setPause] = useState(String(entry?.break_minutes ?? 0))
@@ -56,31 +55,24 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
       </div>
       <label>Tellija telefon<input name="phone" type="tel" maxLength={50} placeholder="+372 …" value={phone} onChange={e => setPhone(e.target.value)} /></label>
       <label>Juht<select name="driver" value={driver} onChange={e => setDriver(e.target.value)}>
-        <option value="">Määran hiljem</option>{employees.filter(e => e.active || e.id === driver).map(e => <option key={e.id} value={e.id}>{e.name}{!e.active ? ' (arhiveeritud)' : ''}</option>)}
+        {!entry && <option value="">Määran hiljem</option>}{employees.filter(e => e.active || e.id === driver).map(e => <option key={e.id} value={e.id}>{e.name}{!e.active ? ' (arhiveeritud)' : ''}</option>)}
       </select></label>
       {employees.every(e => !e.active) && <small className="muted">Lisa töötaja <Link href="/manager/time">palgaarvestusse</Link>, et teda juhiks valida.</small>}
       <label>Töö kirjeldus<textarea name="description" rows={2} maxLength={2000} placeholder="Mida tuleb teha?" value={description} onChange={e => setDescription(e.target.value)} /></label>
-      <details className="simple-time-panel">
-        <summary>Juhi tööaeg {entry ? '· salvestatud' : '· lisa soovi korral'}</summary>
-        <div className="stack top-gap">
-          <p className="muted">Tasustatud aeg algab väljasõidust. Lisa see siia, kui ka lõpetamise aeg on teada.</p>
-          {entry && <p>Praegu: {entry.work_date} · {minuteTime(entry.start_minute)}–{minuteTime(entry.end_minute)}{entry.next_day ? ' (+1 päev)' : ''} · paus {entry.break_minutes} min</p>}
-          <label className="simple-check"><input name="saveTime" type="checkbox" checked={saveTime} onChange={e => { setSaveTime(e.target.checked); if (!workDate) setWorkDate(date) }} />{entry ? 'Muuda juhi tööaega' : 'Lisa juhi tööaeg palgaarvestusse'}</label>
-          {saveTime && <div className="stack">
-            <label>Tööaja kuupäev<input name="workDate" type="date" min="2000-01-01" max="2099-12-31" required value={workDate} onInput={e => setWorkDate(e.currentTarget.value)} onChange={e => setWorkDate(e.target.value)} /></label>
-            <div className="form-grid two">
-              <label>Väljasõit<input name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
-              <label>Lõpetamine<input name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
-            </div>
-            <div className="form-grid two">
-              <label>Paus minutites<input name="pause" type="number" min="0" max="1439" required value={pause} onChange={e => setPause(e.target.value)} /></label>
-              <label className="simple-check"><input name="nextDay" type="checkbox" checked={nextDay} onChange={e => setNextDay(e.target.checked)} />Lõpp järgmisel päeval</label>
-            </div>
-            {preview && driver ? <div className="alert success">{(preview.minutes / 60).toLocaleString('et-EE', { maximumFractionDigits: 2 })} tundi · {(preview.cents / 100).toLocaleString('et-EE', { style: 'currency', currency: 'EUR' })}</div> : <small className="muted">Vali juht ja sisesta korrektne ajavahemik.</small>}
-          </div>}
-          {entry && driver !== entry.employee_id && <div className="alert danger">Juhi vahetamiseks muuda ka selle tööga seotud tööaja kirjet.</div>}
+      {driver && <section className="simple-time-panel stack" aria-labelledby="driver-time-heading">
+        <strong id="driver-time-heading">Juhi tööaeg</strong>
+        <p className="muted">Tasustatud aeg algab väljasõidust. Salvestamisel kantakse tunnid palgaarvestusse.</p>
+        <label>Tööaja kuupäev<input name="workDate" type="date" min="2000-01-01" max="2099-12-31" required value={workDate ?? date} onInput={e => setWorkDate(e.currentTarget.value)} onChange={e => setWorkDate(e.target.value)} /></label>
+        <div className="form-grid two">
+          <label>Väljasõit<input name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
+          <label>Lõpetamine<input name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
         </div>
-      </details>
+        <div className="form-grid two">
+          <label>Paus minutites<input name="pause" type="number" min="0" max="1439" required value={pause} onChange={e => setPause(e.target.value)} /></label>
+          <label className="simple-check"><input name="nextDay" type="checkbox" checked={nextDay} onChange={e => setNextDay(e.target.checked)} />Lõpp järgmisel päeval</label>
+        </div>
+        {preview && <div className="alert success">{(preview.minutes / 60).toLocaleString('et-EE', { maximumFractionDigits: 2 })} tundi · {(preview.cents / 100).toLocaleString('et-EE', { style: 'currency', currency: 'EUR' })}</div>}
+      </section>}
       <div className="action-grid two"><Link href={cancelHref} className="button secondary">Tagasi</Link><button type="submit" className="button primary" disabled={pending}>{pending ? 'Salvestan…' : 'Salvesta töö'}</button></div>
     </fieldset>
   </form>

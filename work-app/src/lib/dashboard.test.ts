@@ -146,3 +146,11 @@ test('dashboard filter jobs match the counts and earnings on each clicked card',
   assert.deepEqual(dashboardModule.jobsOnPlannedDate(input,'2026-09-10').map(j=>j.id),['future'])
   assert.equal(dashboardModule.jobsOnPlannedDate(input,'2026-08-22').some(j=>j.id==='cancelled'),false)
 })
+
+test('the active user plan shows today and upcoming dates before old unfinished dates', async () => {
+  const { orderWorkPlanDates } = await import('./dashboard.ts')
+  const dates = ['2026-09-22', '2026-11-09', '2026-11-10', '2026-11-11']
+  assert.deepEqual(orderWorkPlanDates(dates, 'active', '2026-11-10'),
+    ['2026-11-10', '2026-11-11', '2026-11-09', '2026-09-22'])
+  assert.deepEqual(orderWorkPlanDates(dates, 'calendar', '2026-11-10'), dates)
+})

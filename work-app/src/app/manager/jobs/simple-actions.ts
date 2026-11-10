@@ -10,8 +10,8 @@ import { timeMinute } from '@/lib/simple-dispatch'
 export async function saveSimpleJob(_previous: { error: string }, form: FormData): Promise<{ error: string }> {
   await requireUser('manager')
   const value = (key: string) => String(form.get(key) ?? '').trim()
-  const payrollEnabled = form.get('saveTime') === 'on'
-  const payroll = payrollEnabled ? {
+  const driver = value('driver')
+  const payroll = driver ? {
     work_date: value('workDate'), start_minute: timeMinute(value('departure')),
     end_minute: timeMinute(value('finish')), next_day: form.get('nextDay') === 'on',
     break_minutes: /^\d+$/.test(value('pause')) ? Number(value('pause')) : null,
@@ -30,7 +30,7 @@ export async function saveSimpleJob(_previous: { error: string }, form: FormData
     p_job_id: value('jobId'), p_expected_updated_at: value('version') || null,
     p_job: { address: value('address'), planned_date: value('date'), planned_time: value('time'),
       contact_phone: value('phone'), description: value('description'),
-      driver_employee_id: value('driver'), site_id: value('siteId'), customer_id: value('customerId') },
+      driver_employee_id: driver, site_id: value('siteId'), customer_id: value('customerId') },
     p_payroll: payroll, p_expected_entry_updated_at: value('entryVersion') || null,
   })
   if (error) {

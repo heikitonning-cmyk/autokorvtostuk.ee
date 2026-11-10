@@ -177,3 +177,15 @@ export function managerDashboardFilter(jobs: SummaryJob[], filter: string, now =
 export function jobsOnPlannedDate(jobs:SummaryJob[],date:string):SummaryJob[] {
   return jobs.filter(job=>job.status!=='tuhistatud' && plannedDateKey(job)===date)
 }
+
+export function orderWorkPlanDates(
+  dates: Iterable<string>, view: 'active' | 'history' | 'calendar', today: string,
+): string[] {
+  return [...dates].sort((a, b) => {
+    if (view === 'calendar') return a.localeCompare(b)
+    if (view === 'history') return b.localeCompare(a)
+    if (a >= today && b >= today) return a.localeCompare(b)
+    if (a < today && b < today) return b.localeCompare(a)
+    return a >= today ? -1 : 1
+  })
+}
