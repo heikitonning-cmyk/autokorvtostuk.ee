@@ -24,3 +24,13 @@ export function driverTimePreview(start: string, end: string, nextDay: boolean, 
   if (duration <= 0 || duration > 1440 || minutes <= 0) return null
   return { minutes, cents: Math.round(minutes * rate / 60) }
 }
+
+/** The job appointment is independent of the driver's paid shift. */
+export function plannedEndError(date: string, start: string, end: string): string | null {
+  if (!end) return null
+  if (!date || !start) return 'Töö lõpu lisamiseks sisesta ka kuupäev ja algusaeg.'
+  const from = timeMinute(start), to = timeMinute(end)
+  if (from == null || to == null) return 'Sisesta korrektne töö algus ja lõpp.'
+  if (to <= from) return 'Töö lõpp peab olema sama päeva algusajast hilisem.'
+  return null
+}

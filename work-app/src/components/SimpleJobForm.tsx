@@ -17,13 +17,16 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
   const [driver, setDriver] = useState(job?.driver_employee_id ?? '')
   const [date, setDate] = useState(job?.planned_date ?? initialDate)
   const [plannedTime, setPlannedTime] = useState(job?.planned_time?.slice(0, 5) ?? '')
+  const [plannedEndTime, setPlannedEndTime] = useState(job?.planned_end_time?.slice(0, 5) ?? '')
   const [phone, setPhone] = useState(job?.contact_phone ?? job?.website_booking_details?.phone ?? job?.customer?.phone ?? '')
   const [description, setDescription] = useState(job?.description ?? '')
-  const [workDate, setWorkDate] = useState<string | null>(entry?.work_date ?? null)
-  const [departure, setDeparture] = useState(minuteTime(entry?.start_minute))
-  const [finish, setFinish] = useState(minuteTime(entry?.end_minute))
+  const [workDate, setWorkDate] = useState<string | null>(entry?.work_date && entry.work_date !== job?.planned_date ? entry.work_date : null)
+  const [departureOverride, setDeparture] = useState<string | null>(entry && minuteTime(entry.start_minute) !== job?.planned_time?.slice(0, 5) ? minuteTime(entry.start_minute) : null)
+  const [finishOverride, setFinish] = useState<string | null>(entry && minuteTime(entry.end_minute) !== job?.planned_end_time?.slice(0, 5) ? minuteTime(entry.end_minute) : null)
   const [pause, setPause] = useState(String(entry?.break_minutes ?? 0))
   const [nextDay, setNextDay] = useState(Boolean(entry?.next_day))
+  const departure = departureOverride ?? plannedTime
+  const finish = finishOverride ?? plannedEndTime
   const employee = employees.find(e => e.id === driver)
   const rate = entry?.employee_id === driver ? entry.hourly_rate_cents : employee?.hourly_rate_cents ?? 0
   const preview = driverTimePreview(departure, finish, nextDay, pause, rate)
@@ -49,9 +52,10 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
           {choices.length === 0 && <small className="muted">Sobivaid aadresse pole. Neste aadressid saad avada ülal oleva filtriga.</small>}
         </div>
       </details>
-      <div className="form-grid two">
-        <label>Kuupäev<input name="date" type="date" min="2000-01-01" max="2099-12-31" value={date} onInput={e => setDate(e.currentTarget.value)} onChange={e => setDate(e.target.value)} /></label>
-        <label>Töö kellaaeg<input name="time" type="time" value={plannedTime} onInput={e => setPlannedTime(e.currentTarget.value)} onChange={e => setPlannedTime(e.target.value)} /></label>
+      <label>Kuupäev<input name="date" type="date" min="2000-01-01" max="2099-12-31" value={date} onInput={e => setDate(e.currentTarget.value)} onChange={e => setDate(e.target.value)} /></label>
+      <div className="simple-job-times">
+        <label>Töö algus<input name="time" type="time" value={plannedTime} onInput={e => setPlannedTime(e.currentTarget.value)} onChange={e => setPlannedTime(e.target.value)} /></label>
+        <label>Töö lõpp<input name="endTime" type="time" value={plannedEndTime} onInput={e => setPlannedEndTime(e.currentTarget.value)} onChange={e => setPlannedEndTime(e.target.value)} /></label>
       </div>
       <label>Tellija telefon<input name="phone" type="tel" maxLength={50} placeholder="+372 …" value={phone} onChange={e => setPhone(e.target.value)} /></label>
       <label>Juht<select name="driver" value={driver} onChange={e => setDriver(e.target.value)}>
@@ -61,11 +65,11 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
       <label>Töö kirjeldus<textarea name="description" rows={2} maxLength={2000} placeholder="Mida tuleb teha?" value={description} onChange={e => setDescription(e.target.value)} /></label>
       {driver && <section className="simple-time-panel stack" aria-labelledby="driver-time-heading">
         <strong id="driver-time-heading">Juhi tööaeg</strong>
-        <p className="muted">Tasustatud aeg algab väljasõidust. Salvestamisel kantakse tunnid palgaarvestusse.</p>
+        <p className="muted">Töö algus ja lõpp täidavad juhi tööaja. Varasema väljasõidu korral muuda algust. Tunnid kantakse salvestamisel palgaarvestusse.</p>
         <label>Tööaja kuupäev<input name="workDate" type="date" min="2000-01-01" max="2099-12-31" required value={workDate ?? date} onInput={e => setWorkDate(e.currentTarget.value)} onChange={e => setWorkDate(e.target.value)} /></label>
         <div className="form-grid two">
-          <label>Väljasõit<input name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
-          <label>Lõpetamine<input name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
+          <label>Juhi algus / väljasõit<input name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
+          <label>Juhi lõpp<input name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
         </div>
         <div className="form-grid two">
           <label>Paus minutites<input name="pause" type="number" min="0" max="1439" required value={pause} onChange={e => setPause(e.target.value)} /></label>

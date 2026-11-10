@@ -8,7 +8,7 @@ export default async function NewJobPage({ searchParams }: { searchParams: Promi
   await requireUser('manager')
   const [refs, params] = await Promise.all([getDispatchReferences(), searchParams])
   return <div className="page narrow stack-lg">
-    <div><p className="eyebrow">Tööplaan</p><h1>Lisa töö</h1><p className="muted">Pane kirja teadaolev info. Juhi tööaja saad lisada eraldi või hiljem.</p></div>
+    <div><p className="eyebrow">Tööplaan</p><h1>Lisa töö</h1><p className="muted">Töö algus ja lõpp täidavad juhi tööaja. Vajadusel märgi varasem väljasõit.</p></div>
     <SimpleJobForm jobId={randomUUID()} {...refs} initialDate={typeof params.date === 'string' && validDate(params.date) ? params.date : ''} />
   </div>
 }

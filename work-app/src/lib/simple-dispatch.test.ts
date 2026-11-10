@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { driverTimePreview, visibleDispatchSites, minuteTime } from './simple-dispatch.ts'
+import { driverTimePreview, visibleDispatchSites, minuteTime, plannedEndError } from './simple-dispatch.ts'
 import { jobPhoneHref } from './job-contact.ts'
 
 test('Neste stays hidden until explicitly enabled, including when searching',()=>{
@@ -19,4 +19,11 @@ test('paid time preview uses departure, overnight flag and unpaid break',()=>{
 })
 test('explicit job contact takes precedence over booking and customer contacts',()=>{
   assert.equal(jobPhoneHref({contact_phone:'+372 555 1234',website_booking_details:{phone:'1234567'},customer:{phone:'7654321'}}),'tel:+3725551234')
+})
+
+test('appointment end is optional but must follow a dated start',()=>{
+  assert.equal(plannedEndError('', '', ''), null)
+  assert.equal(plannedEndError('2026-11-11', '10:00', '12:00'), null)
+  for (const [date, start, end] of [['','10:00','12:00'],['2026-11-11','','12:00'],['2026-11-11','10:00','09:00'],['2026-11-11','10:00','10:00'],['2026-11-11','10:00','24:00']])
+    assert.ok(plannedEndError(date, start, end))
 })

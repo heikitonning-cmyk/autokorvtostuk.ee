@@ -32,7 +32,7 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
     create policy shared_read on public.jobs for select to authenticated using(true);
     create policy legacy_update on public.jobs for update to authenticated using(operator_id=auth.uid()) with check(operator_id=auth.uid());`)
   await db.exec('begin;'+read('20261107052811_employee_time_wages.sql')+'commit;')
-  for(const file of ['20261107061650_worker_first_payroll.sql','20261107063549_payroll_payments.sql','20261110095155_simple_dispatch.sql','20261110104500_require_driver_payroll.sql']) await db.exec(read(file))
+  for(const file of ['20261107061650_worker_first_payroll.sql','20261107063549_payroll_payments.sql','20261110095155_simple_dispatch.sql','20261110104500_require_driver_payroll.sql','20261110105855_job_planned_end_time.sql']) await db.exec(read(file))
   const login=async(id:string)=>db.exec(`reset role;set role authenticated;select set_config('request.jwt.claim.sub','${id}',false)`)
   await login(manager)
   await db.exec(`insert into public.payroll_employees(id,name,hourly_rate_cents) values('${a}','Payroll driver',1200),('${b}','Other driver',1500);`)
@@ -53,6 +53,38 @@ test('compact dispatch and separate driver payroll use atomic, authorized databa
     assert.equal(await entry(id),undefined)
     await assert.rejects(save(id,payload,null,saved.updated_at),{code:'23514'})
     assert.equal((await job(id)).driver_name,null)
+  })
+  await t.test('appointment end persists independently, updates, clears and supports legacy callers',async()=>{
+    const id=randomUUID(),scheduled={...payload,driver_employee_id:'',planned_end_time:'12:00'}
+    await save(id,scheduled)
+    let saved=await job(id)
+    assert.equal(saved.planned_end_time,'12:00:00')
+    assert.equal(new Date(saved.end_planned).toISOString(),'2026-11-10T10:00:00.000Z')
+    assert.equal(await entry(id),undefined)
+    await save(id,{...payload,driver_employee_id:''},null,saved.updated_at)
+    saved=await job(id);assert.equal(saved.planned_end_time,'12:00:00')
+    await save(id,{...scheduled,planned_end_time:'13:30',planned_date:'2026-07-10'},null,saved.updated_at)
+    saved=await job(id);assert.equal(new Date(saved.end_planned).toISOString(),'2026-07-10T10:30:00.000Z')
+    await save(id,{...scheduled,planned_end_time:''},null,saved.updated_at)
+    saved=await job(id);assert.equal(saved.end_planned,null);assert.equal(saved.planned_end_time,null)
+  })
+  await t.test('invalid appointment ends cannot create or partially change work',async()=>{
+    for(const patch of [{planned_end_time:'09:00'},{planned_end_time:'10:00'},{planned_end_time:'24:00'},{planned_end_time:'12:00',planned_time:''},{planned_end_time:'12:00',planned_date:''}]){
+      const id=randomUUID()
+      await assert.rejects(save(id,{...payload,driver_employee_id:'',...patch}),{code:'23514'})
+      assert.equal(await job(id),undefined)
+    }
+    const id=randomUUID();await save(id,{...payload,driver_employee_id:'',planned_end_time:'12:00'})
+    const before=await job(id)
+    await assert.rejects(save(id,{...payload,driver_employee_id:'',address:'Must not save',planned_end_time:'09:00'},null,before.updated_at),{code:'23514'})
+    assert.deepEqual(await job(id),before)
+  })
+  await t.test('explicit driver hours can differ from the appointment duration',async()=>{
+    const id=randomUUID();await save(id,{...payload,driver_employee_id:b,planned_end_time:'12:00'},time('2026-11-20'))
+    const wages=await entry(id);assert.equal(wages.paid_minutes,210)
+    await save(id,{...payload,driver_employee_id:b,planned_end_time:'16:00'},time('2026-11-20'),(await job(id)).updated_at,wages.updated_at)
+    const updated=await entry(id)
+    assert.equal(updated.paid_minutes,210);assert.equal(updated.wage_cents,wages.wage_cents)
   })
   await t.test('departure is independent; exact retries do not duplicate or overwrite; balance uses paid minutes',async()=>{
     const id=randomUUID(),hours=time('2026-11-10');await save(id,payload,hours)

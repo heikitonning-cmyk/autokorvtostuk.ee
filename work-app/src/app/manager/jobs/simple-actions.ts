@@ -5,11 +5,13 @@ import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { calculateTime, validDate } from '@/lib/payroll'
-import { timeMinute } from '@/lib/simple-dispatch'
+import { plannedEndError, timeMinute } from '@/lib/simple-dispatch'
 
 export async function saveSimpleJob(_previous: { error: string }, form: FormData): Promise<{ error: string }> {
   await requireUser('manager')
   const value = (key: string) => String(form.get(key) ?? '').trim()
+  const scheduleError = plannedEndError(value('date'), value('time'), value('endTime'))
+  if (scheduleError) return { error: scheduleError }
   const driver = value('driver')
   const payroll = driver ? {
     work_date: value('workDate'), start_minute: timeMinute(value('departure')),
@@ -28,7 +30,7 @@ export async function saveSimpleJob(_previous: { error: string }, form: FormData
   const db = await createClient()
   const { data, error } = await db.rpc('save_simple_job', {
     p_job_id: value('jobId'), p_expected_updated_at: value('version') || null,
-    p_job: { address: value('address'), planned_date: value('date'), planned_time: value('time'),
+    p_job: { address: value('address'), planned_date: value('date'), planned_time: value('time'), planned_end_time: value('endTime'),
       contact_phone: value('phone'), description: value('description'),
       driver_employee_id: driver, site_id: value('siteId'), customer_id: value('customerId') },
     p_payroll: payroll, p_expected_entry_updated_at: value('entryVersion') || null,
