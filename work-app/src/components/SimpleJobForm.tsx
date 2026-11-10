@@ -25,6 +25,7 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
   const [finishOverride, setFinish] = useState<string | null>(entry && minuteTime(entry.end_minute) !== job?.planned_end_time?.slice(0, 5) ? minuteTime(entry.end_minute) : null)
   const [pause, setPause] = useState(String(entry?.break_minutes ?? 0))
   const [nextDay, setNextDay] = useState(Boolean(entry?.next_day))
+  const [showTimeOptions, setShowTimeOptions] = useState(Boolean(workDate || Number(pause) || nextDay))
   const departure = departureOverride ?? plannedTime
   const finish = finishOverride ?? plannedEndTime
   const employee = employees.find(e => e.id === driver)
@@ -52,31 +53,39 @@ export function SimpleJobForm({ jobId, job, employees, sites, entry, initialDate
           {choices.length === 0 && <small className="muted">Sobivaid aadresse pole. Neste aadressid saad avada ülal oleva filtriga.</small>}
         </div>
       </details>
-      <label>Kuupäev<input name="date" type="date" min="2000-01-01" max="2099-12-31" value={date} onInput={e => setDate(e.currentTarget.value)} onChange={e => setDate(e.target.value)} /></label>
-      <div className="simple-job-times">
-        <label>Töö algus<input name="time" type="time" value={plannedTime} onInput={e => setPlannedTime(e.currentTarget.value)} onChange={e => setPlannedTime(e.target.value)} /></label>
-        <label>Töö lõpp<input name="endTime" type="time" value={plannedEndTime} onInput={e => setPlannedEndTime(e.currentTarget.value)} onChange={e => setPlannedEndTime(e.target.value)} /></label>
-      </div>
-      <label>Tellija telefon<input name="phone" type="tel" maxLength={50} placeholder="+372 …" value={phone} onChange={e => setPhone(e.target.value)} /></label>
+      <label>Kuupäev<input name="date" type="date" min="2000-01-01" max="2099-12-31" required={!!driver && !workDate} value={date} onInput={e => setDate(e.currentTarget.value)} onChange={e => setDate(e.target.value)} /></label>
+      <section className="simple-time-row" aria-labelledby="customer-time-heading">
+        <strong id="customer-time-heading">Tööaeg tellijale</strong>
+        <div className="simple-job-times">
+          <label>Algus<input aria-label="Tellija töö algus" name="time" type="time" value={plannedTime} onInput={e => setPlannedTime(e.currentTarget.value)} onChange={e => setPlannedTime(e.target.value)} /></label>
+          <label>Lõpp<input aria-label="Tellija töö lõpp" name="endTime" type="time" value={plannedEndTime} onInput={e => setPlannedEndTime(e.currentTarget.value)} onChange={e => setPlannedEndTime(e.target.value)} /></label>
+        </div>
+      </section>
       <label>Juht<select name="driver" value={driver} onChange={e => setDriver(e.target.value)}>
         {!entry && <option value="">Määran hiljem</option>}{employees.filter(e => e.active || e.id === driver).map(e => <option key={e.id} value={e.id}>{e.name}{!e.active ? ' (arhiveeritud)' : ''}</option>)}
       </select></label>
       {employees.every(e => !e.active) && <small className="muted">Lisa töötaja <Link href="/manager/time">palgaarvestusse</Link>, et teda juhiks valida.</small>}
-      <label>Töö kirjeldus<textarea name="description" rows={2} maxLength={2000} placeholder="Mida tuleb teha?" value={description} onChange={e => setDescription(e.target.value)} /></label>
-      {driver && <section className="simple-time-panel stack" aria-labelledby="driver-time-heading">
+      {driver ? <section className="simple-time-row simple-driver-time" aria-labelledby="driver-time-heading">
         <strong id="driver-time-heading">Juhi tööaeg</strong>
-        <p className="muted">Töö algus ja lõpp täidavad juhi tööaja. Varasema väljasõidu korral muuda algust. Tunnid kantakse salvestamisel palgaarvestusse.</p>
-        <label>Tööaja kuupäev<input name="workDate" type="date" min="2000-01-01" max="2099-12-31" required value={workDate ?? date} onInput={e => setWorkDate(e.currentTarget.value)} onChange={e => setWorkDate(e.target.value)} /></label>
-        <div className="form-grid two">
-          <label>Juhi algus / väljasõit<input name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
-          <label>Juhi lõpp<input name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
+        <div className="simple-job-times">
+          <label>Algus / väljasõit<input aria-label="Juhi algus / väljasõit" name="departure" type="time" required value={departure} onInput={e => setDeparture(e.currentTarget.value)} onChange={e => setDeparture(e.target.value)} /></label>
+          <label>Lõpp<input aria-label="Juhi lõpp" name="finish" type="time" required value={finish} onInput={e => setFinish(e.currentTarget.value)} onChange={e => setFinish(e.target.value)} /></label>
         </div>
-        <div className="form-grid two">
-          <label>Paus minutites<input name="pause" type="number" min="0" max="1439" required value={pause} onChange={e => setPause(e.target.value)} /></label>
-          <label className="simple-check"><input name="nextDay" type="checkbox" checked={nextDay} onChange={e => setNextDay(e.target.checked)} />Lõpp järgmisel päeval</label>
-        </div>
-        {preview && <div className="alert success">{(preview.minutes / 60).toLocaleString('et-EE', { maximumFractionDigits: 2 })} tundi · {(preview.cents / 100).toLocaleString('et-EE', { style: 'currency', currency: 'EUR' })}</div>}
-      </section>}
+        <small className="muted">Juhi aeg läheb palgaarvestusse. Muuda ainult erinevused.</small>
+        {preview && <strong className="simple-wage-preview" aria-live="polite">Palgaarvestusse: {(preview.minutes / 60).toLocaleString('et-EE', { maximumFractionDigits: 2 })} tundi · {(preview.cents / 100).toLocaleString('et-EE', { style: 'currency', currency: 'EUR' })}</strong>}
+        <details className="simple-time-options" open={showTimeOptions} onToggle={e => setShowTimeOptions(e.currentTarget.open)}>
+          <summary>Lisavalikud{[workDate ? `kuupäev ${workDate.split('-').reverse().join('.')}` : '', Number(pause) ? `paus ${pause} min` : '', nextDay ? 'lõpp järgmisel päeval' : ''].filter(Boolean).map(text => ` · ${text}`)}</summary>
+          <div className="stack top-gap">
+            <label>Juhi kuupäev (kui erineb)<input name="workDate" type="date" min="2000-01-01" max="2099-12-31" value={workDate ?? ''} onInput={e => setWorkDate(e.currentTarget.value || null)} onChange={e => setWorkDate(e.target.value || null)} /><small className="muted">Tühjaks jättes kasutatakse töö kuupäeva.</small></label>
+            <div className="simple-job-times">
+              <label>Paus minutites<input name="pause" type="number" min="0" max="1439" required value={pause} onChange={e => setPause(e.target.value)} /></label>
+              <label className="simple-check"><input name="nextDay" type="checkbox" checked={nextDay} onChange={e => setNextDay(e.target.checked)} />Lõpp järgmisel päeval</label>
+            </div>
+          </div>
+        </details>
+      </section> : <small className="muted">Juhi valimisel lisatakse tema tööaeg palgaarvestusse.</small>}
+      <label>Tellija telefon<input name="phone" type="tel" maxLength={50} placeholder="+372 …" value={phone} onChange={e => setPhone(e.target.value)} /></label>
+      <label>Töö kirjeldus<textarea name="description" rows={2} maxLength={2000} placeholder="Mida tuleb teha?" value={description} onChange={e => setDescription(e.target.value)} /></label>
       <div className="action-grid two"><Link href={cancelHref} className="button secondary">Tagasi</Link><button type="submit" className="button primary" disabled={pending}>{pending ? 'Salvestan…' : 'Salvesta töö'}</button></div>
     </fieldset>
   </form>

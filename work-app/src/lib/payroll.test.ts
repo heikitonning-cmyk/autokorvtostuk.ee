@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { calculateTime, parseRate, wageCents, validDate, monthRange, tallinnDate, tallinnClock, runningMinutes, entrySiteIds, totals, groupedTotals, type TimeEntry } from './payroll.ts'
+import { calculateTime, parseRate, wageCents, validDate, monthRange, tallinnDate, tallinnClock, runningMinutes, entrySiteIds, entryLocation, matchesEntryLocation, totals, groupedTotals, type TimeEntry } from './payroll.ts'
 
 test('08–17 less 30 minutes at 12.50 equals 8h30 and 106.25', () => {
   const t = calculateTime('08:00', '17:00', '30')
@@ -55,4 +55,21 @@ test('optional multiple site labels cannot inflate totals; running wages are exc
   assert.deepEqual(entrySiteIds(rows[1]),[])
   assert.deepEqual(totals(rows),{minutes:60,cents:1200})
   assert.deepEqual(groupedTotals(rows,'employee_id'),[{id:'a',minutes:60,cents:1200}])
+})
+
+
+test('job addresses label and filter payroll entries without requiring a saved site', () => {
+  const linked = { site_id: null, sites: [], job: { address: 'Näidistee 2, Tallinn' } }
+  assert.equal(entryLocation(linked, id => id), 'Näidistee 2, Tallinn')
+  assert.equal(matchesEntryLocation(linked, 'none'), false)
+  assert.equal(matchesEntryLocation(linked, 'address:Näidistee 2, Tallinn'), true)
+  assert.equal(matchesEntryLocation(linked, 'address:Muu aadress'), false)
+  assert.equal(matchesEntryLocation(linked, ''), true)
+  const manual = { site_id: 's1', sites: [{ site_id: 's2' }], job: null }
+  assert.equal(entryLocation(manual, id => id), 's1 · s2')
+  assert.equal(matchesEntryLocation(manual, 's2'), true)
+  assert.equal(matchesEntryLocation(manual, 'none'), false)
+  assert.equal(entryLocation({ ...manual, job: linked.job }, id => id), linked.job.address)
+  assert.equal(entryLocation({ site_id: null, job: null }, id => id), 'Objektita')
+  assert.equal(matchesEntryLocation({ site_id: null, job: null }, 'none'), true)
 })

@@ -80,7 +80,11 @@ a.metric-card:focus-visible,a.attention-card:focus-visible,a.capacity-chip:focus
 .simple-job-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .simple-job-form { max-width: 620px; width: 100%; }
 .simple-address-picker summary { color: var(--muted, #64748b); cursor: pointer; font-size: .95rem; }
-.simple-time-panel { padding: 16px; border: 1px solid #dce3ea; border-radius: 16px; background: #f8fafc; }
+.simple-time-row { display: grid; gap: 8px; min-width: 0; }
+.simple-driver-time { padding: 12px; border: 1px solid #dce3ea; border-radius: 12px; background: #f8fafc; }
+.simple-wage-preview { color: #087443; font-size: 14px; }
+.simple-time-options summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.simple-time-row input { min-width: 0; max-width: 100%; }
 .simple-check { display: flex; align-items: center; gap: 10px; flex-direction: row; }
 .simple-check input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 20px; }
 .simple-job-fields:disabled { opacity: .7; }
