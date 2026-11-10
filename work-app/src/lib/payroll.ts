@@ -4,6 +4,7 @@ export type PayrollSite = { id: string; name: string; customer_id: string; activ
 export type TimeEntry = {
   id: string; employee_id: string; site_id: string | null; work_date: string
   sites?: { site_id: string }[]
+  job?: { address: string | null } | null
   start_minute: number; end_minute: number | null; next_day: boolean; break_minutes: number
   hourly_rate_cents: number; paid_minutes: number | null; wage_cents: number | null; note: string
   updated_at: string
@@ -60,6 +61,20 @@ export function tallinnClock(now = new Date()): string {
 
 export function entrySiteIds(entry: Pick<TimeEntry, 'site_id' | 'sites'>): string[] {
   return [...new Set([...(entry.site_id ? [entry.site_id] : []), ...(entry.sites ?? []).map(s => s.site_id)])]
+}
+
+type EntryLocation = Pick<TimeEntry, 'site_id' | 'sites' | 'job'>
+
+export function entryLocation(entry: EntryLocation, siteName: (id: string) => string): string {
+  return entry.job?.address?.trim() || entrySiteIds(entry).map(siteName).join(' · ') || 'Objektita'
+}
+
+export function matchesEntryLocation(entry: EntryLocation, filter: string): boolean {
+  if (!filter) return true
+  const address = entry.job?.address?.trim()
+  if (filter === 'none') return !address && !entrySiteIds(entry).length
+  if (filter.startsWith('address:')) return address === filter.slice(8)
+  return entrySiteIds(entry).includes(filter)
 }
 
 /** Match entered wall-clock minutes, including the existing overnight convention. */

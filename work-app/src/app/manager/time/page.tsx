@@ -23,12 +23,12 @@ export default async function TimePage({ searchParams }: { searchParams: Promise
       readAllPages<PayrollSite>((a,b) => db.from('customer_sites').select('id,name,customer_id,active').order('name').order('id').range(a,b)),
       readAllPages<{id:string;name:string}>((a,b) => db.from('customers').select('id,name').order('name').order('id').range(a,b)),
       history.allDays && !history.employeeId ? Promise.resolve([] as TimeEntry[]) : readAllPages<TimeEntry>((a,b) => {
-        let query=db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id)').not('end_minute','is',null)
+        let query=db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id), job:jobs!payroll_entries_job_id_fkey(address)').not('end_minute','is',null)
         if(historyRange) query=query.gte('work_date',historyRange.from).lt('work_date',historyRange.to)
         if(history.employeeId) query=query.eq('employee_id',history.employeeId)
         return query.order('work_date',{ascending:false}).order('start_minute',{ascending:false}).order('id').range(a,b)
       }),
-      readAllPages<TimeEntry>((a,b) => db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id)').is('end_minute',null).order('work_date').order('start_minute').order('id').range(a,b)),
+      readAllPages<TimeEntry>((a,b) => db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id), job:jobs!payroll_entries_job_id_fkey(address)').is('end_minute',null).order('work_date').order('start_minute').order('id').range(a,b)),
       readAllPages<PayrollPayment>((a,b)=>db.from('payroll_payments').select('id,employee_id,paid_date,amount_cents,note,updated_at,voided_at').gte('paid_date',from).lt('paid_date',to).order('paid_date',{ascending:false}).order('id').range(a,b)),
       readAllPages<PayrollBalance>((a,b)=>db.rpc('payroll_balances').order('employee_id').range(a,b)),
     ])

@@ -14,7 +14,7 @@ export async function saveSimpleJob(_previous: { error: string }, form: FormData
   if (scheduleError) return { error: scheduleError }
   const driver = value('driver')
   const payroll = driver ? {
-    work_date: value('workDate'), start_minute: timeMinute(value('departure')),
+    work_date: value('workDate') || value('date'), start_minute: timeMinute(value('departure')),
     end_minute: timeMinute(value('finish')), next_day: form.get('nextDay') === 'on',
     break_minutes: /^\d+$/.test(value('pause')) ? Number(value('pause')) : null,
   } : null
