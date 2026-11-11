@@ -110,7 +110,7 @@ test('worker landing page shows the shared work plan and its history', () => {
   const shell = readFileSync(resolve(root, 'src/components/AppShell.tsx'), 'utf8')
   const oldCalendar = readFileSync(resolve(root, 'src/app/operator/calendar/page.tsx'), 'utf8')
   assert.match(page, /getSharedLiftCalendar/)
-  assert.match(page, /Ajalugu/)
+  assert.match(page, /Varasemad tööd/)
   assert.match(page, /Tööplaan/)
   assert.doesNotMatch(page, /VÕTA TÖÖ/)
   assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
