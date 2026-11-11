@@ -1,0 +1,213 @@
+'use client'
+
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { StopPicker, type StopDraft } from '@/components/StopPicker'
+import { StopOrderEditor, type StopOrderItem } from '@/components/StopOrderEditor'
+import { RouteEndpointFields } from '@/components/RouteEndpointFields'
+import { RouteOptimizationPanel } from '@/components/RouteOptimizationPanel'
+import type { SiteOption } from '@/lib/job-stops'
+import { addStopsAction, removeStopAction, reorderStopsAction, updateRouteEndpointsAction, updateStopDescriptionAction } from '@/app/job-stop-actions'
+
+type DraftStop = StopOrderItem & { siteId: string | null }
+
+const toDraft = (draft: StopDraft, index: number): DraftStop => ({
+  id: draft.key,
+  siteId: draft.siteId,
+  sequence_no: index + 1,
+  name_snapshot: draft.name,
+  address_snapshot: draft.address,
+  description: draft.description || null,
+  status: 'pending',
+})
+
+export function JobStopsEditor({
+  sites,
+  stops = [],
+  jobId,
+  routeRevision = 0,
+  routeStartSiteId = '',
+  routeStartAddress = '',
+  routeEndSiteId = '',
+  routeEndAddress = '',
+}: {
+  sites: SiteOption[]
+  stops?: StopOrderItem[]
+  jobId?: string
+  routeRevision?: number
+  routeStartSiteId?: string
+  routeStartAddress?: string
+  routeEndSiteId?: string
+  routeEndAddress?: string
+}) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [pickerOpen, setPickerOpen] = useState(stops.length === 0)
+  const [revision, setRevision] = useState(Number(routeRevision || 0))
+  const [draftStops, setDraftStops] = useState<DraftStop[]>([])
+  const [startSiteId, setStartSiteId] = useState(routeStartSiteId)
+  const [startAddress, setStartAddress] = useState(routeStartAddress)
+  const [endSiteId, setEndSiteId] = useState(routeEndSiteId)
+  const [endAddress, setEndAddress] = useState(routeEndAddress)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => setRevision(Number(routeRevision || 0)), [routeRevision])
+  useEffect(() => { setStartSiteId(routeStartSiteId); setStartAddress(routeStartAddress) }, [routeStartSiteId, routeStartAddress])
+  useEffect(() => { setEndSiteId(routeEndSiteId); setEndAddress(routeEndAddress) }, [routeEndSiteId, routeEndAddress])
+
+  const shownStops = jobId ? stops : draftStops
+  const pendingCount = shownStops.filter((stop) => stop.status === 'pending').length
+  const hasStarted = shownStops.some((stop) => stop.status !== 'pending' || Boolean((stop as StopOrderItem & { actual_start?: string | null }).actual_start))
+  const initialStopsJson = useMemo(() => JSON.stringify(draftStops.map((stop) => ({
+    siteId: stop.siteId,
+    name: stop.name_snapshot ?? '',
+    address: stop.address_snapshot,
+    description: stop.description ?? '',
+  }))), [draftStops])
+
+  function addSelected(selected: StopDraft[]) {
+    setError(null)
+    if (!jobId) {
+      setDraftStops((current) => [...current, ...selected.map((draft, index) => toDraft(draft, current.length + index))])
+      setPickerOpen(false)
+      return
+    }
+
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('expectedRevision', String(revision))
+    form.set('stopsJson', JSON.stringify(selected.map((draft) => ({ siteId: draft.siteId, name: draft.name, address: draft.address, description: draft.description }))))
+    startTransition(async () => {
+      const result = await addStopsAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Peatuste lisamine ei õnnestunud.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      setPickerOpen(false)
+      router.refresh()
+    })
+  }
+
+  function reorder(pendingStopIds: string[]) {
+    setError(null)
+    if (!jobId) {
+      setDraftStops((current) => {
+        const byId = new Map(current.map((stop) => [stop.id, stop]))
+        return pendingStopIds.map((id, index) => {
+          const stop = byId.get(id)
+          return stop ? { ...stop, sequence_no: index + 1 } : null
+        }).filter((stop): stop is DraftStop => Boolean(stop))
+      })
+      return
+    }
+
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('expectedRevision', String(revision))
+    form.set('stopIdsJson', JSON.stringify(pendingStopIds))
+    startTransition(async () => {
+      const result = await reorderStopsAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Järjekorra muutmine ei õnnestunud.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
+  function removeStop(stopId: string) {
+    setError(null)
+    if (!jobId) {
+      setDraftStops((current) => current
+        .filter((stop) => stop.id !== stopId)
+        .map((stop, index) => ({ ...stop, sequence_no: index + 1 })))
+      return
+    }
+
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('stopId', stopId)
+    form.set('expectedRevision', String(revision))
+    startTransition(async () => {
+      const result = await removeStopAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Peatuse eemaldamine ei õnnestunud. Eemaldada saab ainult ootel peatust.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
+  function saveDescription(stopId: string, description: string) {
+    if (!jobId) return
+    setError(null)
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('stopId', stopId)
+    form.set('expectedRevision', String(revision))
+    form.set('description', description)
+    startTransition(async () => {
+      const result = await updateStopDescriptionAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Peatuse töö salvestamine ei õnnestunud.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
+  function saveEndpoints() {
+    if (!jobId) return
+    setError(null)
+    const form = new FormData()
+    form.set('jobId', jobId)
+    form.set('expectedRevision', String(revision))
+    form.set('routeStartSiteId', startSiteId)
+    form.set('routeStartAddress', startAddress)
+    form.set('routeEndSiteId', endSiteId)
+    form.set('routeEndAddress', endAddress)
+    startTransition(async () => {
+      const result = await updateRouteEndpointsAction(form)
+      if (!result.ok) {
+        setError(result.error === 'stale-route' ? 'Marsruuti muudeti teises vaates. Värskenda ja proovi uuesti.' : 'Algus- ja lõpp-punkti salvestamine ei õnnestunud.')
+        router.refresh()
+        return
+      }
+      setRevision(result.revision ?? revision)
+      router.refresh()
+    })
+  }
+
+  return <section className="detail-card stack">
+    {!jobId && <input type="hidden" name="initialStopsJson" value={initialStopsJson} />}
+    <div><p className="eyebrow">Marsruut</p><h2>Peatused <span className="count">{shownStops.length}</span></h2></div>
+    {error && <div className="alert danger">{error}</div>}
+
+    {jobId ? <>
+      <RouteEndpointFields
+        sites={sites}
+        routeStartSiteId={startSiteId}
+        routeStartAddress={startAddress}
+        routeEndSiteId={endSiteId}
+        routeEndAddress={endAddress}
+        onStartChange={(value) => { setStartSiteId(value.siteId); setStartAddress(value.address) }}
+        onEndChange={(value) => { setEndSiteId(value.siteId); setEndAddress(value.address) }}
+      />
+      <button type="button" className="button secondary wide" disabled={isPending} onClick={saveEndpoints}>Salvesta algus ja lõpp</button>
+    </> : <p className="muted">Marsruudi algus ja lõpp: Luige (vaikimisi). Pärast töö salvestamist saad neid vajadusel muuta.</p>}
+
+    {shownStops.length > 0 && <StopOrderEditor stops={shownStops} onReorder={reorder} onDescriptionSave={jobId ? saveDescription : undefined} onRemove={removeStop} />}
+    {jobId && !hasStarted && pendingCount >= 2 && <RouteOptimizationPanel jobId={jobId} mode="all" routeRevision={revision} />}
+    <button type="button" className="button secondary wide" disabled={isPending} onClick={() => setPickerOpen((open) => !open)}>{pickerOpen ? 'Sulge asukohtade valik' : '+ Lisa peatus'}</button>
+    {pickerOpen && <StopPicker sites={sites} onAdd={addSelected} />}
+    {isPending && <small className="muted">Salvestan marsruuti…</small>}
+  </section>
+}
