@@ -3,28 +3,21 @@
 import { revalidatePath } from 'next/cache'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
+import type { ActionState } from '@/lib/payroll'
 
-const n = (v: FormDataEntryValue | null, fallback: number) => {
-  if (v == null || String(v).trim() === '') return fallback
-  const x = Number(v)
-  return Number.isFinite(x) && x >= 0 ? x : fallback
-}
-
-export async function updatePricing(formData: FormData) {
-  const user = await requireUser('manager')
-  const value = {
-    hourlyRate: n(formData.get('hourlyRate'), 45),
-    minimumOrder: n(formData.get('minimumOrder'), 90),
-    driveHourlyRate: n(formData.get('driveHourlyRate'), 45),
-    kmRate: n(formData.get('kmRate'), 1),
-    helperHourlyRate: n(formData.get('helperHourlyRate'), 35),
-    operatorWorkHourlyRate: n(formData.get('operatorWorkHourlyRate'), 15),
+export async function updatePricing(_previous:ActionState,formData:FormData):Promise<ActionState> {
+  const user=await requireUser('manager')
+  const value:Record<string,number>={}
+  for(const key of ['hourlyRate','driverHourlyRate','minimumOrder','driveHourlyRate','kmRate','helperHourlyRate','operatorWorkHourlyRate']) {
+    const raw=String(formData.get(key)??'').trim().replace(',','.')
+    if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)>(key==='minimumOrder'?9999999.99:9999.99)) return {error:'Sisesta kõik hinnad numbritena kuni kahe komakohaga. Tunnihind võib olla 0–9999,99 €.'}
+    value[key]=Number(raw)
   }
-  const supabase = await createClient()
-  const { error } = await supabase.from('settings').upsert({ key: 'pricing', value, updated_by: user.id })
-  if (error) throw new Error('Hindade salvestamine ei õnnestunud.')
-  revalidatePath('/manager/settings')
-  revalidatePath('/manager/jobs/new')
+  const db=await createClient()
+  const {error}=await db.from('settings').upsert({key:'pricing',value,updated_by:user.id})
+  if(error) return {error:'Hindade salvestamine ei õnnestunud. Proovi uuesti.'}
+  revalidatePath('/manager','layout')
+  return {success:'Üldhinnad salvestatud. Uued objektid kasutavad neid hindu; varasemate objektide hinnad säilivad.'}
 }
 
 export async function addWorkType(formData: FormData) {

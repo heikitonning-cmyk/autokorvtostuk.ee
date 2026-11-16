@@ -4,6 +4,7 @@ import { readAllPages } from '@/lib/pagination'
 
 export const defaultPricing: PriceSettings = {
   hourlyRate: 45,
+  driverHourlyRate: 0,
   minimumOrder: 90,
   driveHourlyRate: 45,
   kmRate: 1,
@@ -39,7 +40,8 @@ function attachStopPhotos(data: any) {
 
 export async function getPricingSettings(): Promise<PriceSettings> {
   const supabase = await createClient()
-  const { data } = await supabase.from('settings').select('value').eq('key', 'pricing').maybeSingle()
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'pricing').maybeSingle()
+  if (error) throw error
   return { ...defaultPricing, ...(data?.value as Partial<PriceSettings> | null ?? {}) }
 }
 
