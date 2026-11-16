@@ -33,7 +33,7 @@ export function PaymentBalances({employees,balances,onPayment}:{employees:Employ
   </section>
 }
 
-function PaymentForm({employees,balances,today,requestId,employeeId,payment,onCancel}:{employees:Employee[];balances:PayrollBalance[];today:string;requestId:string;employeeId:string;payment?:PayrollPayment;onCancel:()=>void}) {
+export function PaymentForm({employees,balances,today,requestId,employeeId,payment,onCancel}:{employees:Employee[];balances:PayrollBalance[];today:string;requestId:string;employeeId:string;payment?:PayrollPayment;onCancel:()=>void}) {
   const [state,action,pending]=useActionState(savePayrollPayment,initial)
   const [worker,setWorker]=useState(payment?.employee_id??employeeId)
   const [date,setDate]=useState(payment?.paid_date??today)
@@ -59,7 +59,7 @@ function PaymentForm({employees,balances,today,requestId,employeeId,payment,onCa
   </form>
 }
 
-function VoidPayment({payment}:{payment:PayrollPayment}) {
+export function VoidPayment({payment}:{payment:PayrollPayment}) {
   const [state,action,pending]=useActionState(voidPayrollPayment,initial)
   return <form action={action} onSubmit={e=>{if(!window.confirm(`Tühista ${euros(payment.amount_cents)} makse kirje? See summa lisandub töölise saadaolevale jäägile tagasi.`)){e.preventDefault();return}submit(e,action)}}>
     <input type="hidden" name="id" value={payment.id}/><input type="hidden" name="version" value={payment.updated_at}/>

@@ -31,7 +31,7 @@ export async function bulkEditTimeEntries(_previous: ActionState, form: FormData
     })
     if (error) return { error: `Ühtegi valitud kirjet ei muudetud. ${dbError(error).error}` }
   } catch { return { error: 'Ühendus katkes. Värskenda nimekirja ja kontrolli enne uut salvestamist, kas muudatus jõudis kohale.' } }
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   const history = payrollHistoryParams({ month: value(form, 'returnMonth'), employee: value(form, 'returnEmployee'), scope: value(form, 'returnScope') }, tallinnDate().slice(0, 7))
   redirect(payrollHistoryUrl(history, String(Date.now())))
 }
@@ -61,8 +61,9 @@ export async function saveTimeEntry(_previous: ActionState, form: FormData): Pro
     })
     if (error) return dbError(error)
   } catch { return { error: 'Ühendus katkes. Kontrolli enne uut salvestamist, kas kirje jõudis nimekirja.' } }
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   if (mode === 'start') return { success: `Töö alustatud: ${employeeIds.length} töölist.`, savedId: String(Date.now()) }
+  if(id && value(form,'returnToEmployee')==='yes') redirect(`/manager/time/workers/${employeeIds[0]}?saved=1`)
   if(id && value(form,'returnView')==='summary') {
     const history=payrollHistoryParams({month:value(form,'returnMonth'),employee:value(form,'returnEmployee'),scope:value(form,'returnScope')},date.slice(0,7))
     redirect(payrollHistoryUrl(history,String(Date.now())))
@@ -84,7 +85,7 @@ export async function finishTimeEntries(_previous: ActionState, form: FormData):
     const { error } = await db.rpc('finish_payroll_entries', { p_entries: entries, p_break_minutes: Number(lunch) })
     if (error) return dbError(error)
   } catch { return { error: 'Ühendus katkes. Värskenda nimekirja ja kontrolli, kas töö sai lõpetatud.' } }
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   return { success: `Töö lõpetatud: ${entries.length} töölist. Tunnid ja palk lisati kokkuvõttesse.`, savedId: String(Date.now()) }
 }
 
@@ -96,7 +97,7 @@ export async function deleteTimeEntry(_previous: ActionState, form: FormData): P
   const { data, error } = await supabase.from('payroll_entries').delete().eq('id', id).eq('updated_at', value(form, 'version')).select('id').maybeSingle()
   if (error) return dbError(error)
   if (!data) return { error: 'Kirjet on vahepeal muudetud. Laadi leht uuesti.' }
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   return { success: 'Kirje kustutatud.' }
 }
 
@@ -112,7 +113,7 @@ export async function saveEmployee(_previous: ActionState, form: FormData): Prom
   const { data, error } = await query.select('id,updated_at').maybeSingle()
   if (error) return dbError(error)
   if (!data) return { error: 'Töölise andmeid on vahepeal muudetud. Laadi leht uuesti ja kontrolli tunnihinda.' }
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   return { success: id ? 'Töölise andmed salvestatud. Varasemate kirjete tunnihinnad säilisid.' : 'Tööline lisatud.', savedId: data.id, savedVersion: data.updated_at }
 }
 

@@ -1,14 +1,16 @@
-import { randomUUID } from 'node:crypto'
 import { requireUser } from '@/lib/session'
-import { validDate } from '@/lib/payroll'
+import { tallinnDate, validDate } from '@/lib/payroll'
 import { getDispatchReferences } from '@/lib/queries'
-import { SimpleJobForm } from '@/components/SimpleJobForm'
+import { getWorkDay } from '@/lib/work-day-queries'
+import { WorkDayForm } from '@/components/WorkDayForm'
 
-export default async function NewJobPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function NewJobPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   await requireUser('manager')
-  const [refs, params] = await Promise.all([getDispatchReferences(), searchParams])
-  return <div className="page narrow stack-lg">
-    <div><p className="eyebrow">Tööplaan</p><h1>Lisa töö</h1><p className="muted">Töö algus ja lõpp täidavad juhi tööaja. Vajadusel märgi varasem väljasõit.</p></div>
-    <SimpleJobForm jobId={randomUUID()} {...refs} initialDate={typeof params.date === 'string' && validDate(params.date) ? params.date : ''} />
+  const query=await searchParams
+  const date=typeof query.date==='string'&&validDate(query.date)?query.date:tallinnDate()
+  const [data,refs]=await Promise.all([getWorkDay(date),getDispatchReferences()])
+  return <div className="page day-page stack-lg"><div><p className="eyebrow">Tööplaan</p><h1>Lisa tööpäevale</h1></div>
+    <form action="/manager/jobs/new" className="day-date-picker"><label>Kuupäev<input name="date" type="date" required min="2000-01-01" max="2099-12-31" defaultValue={date}/></label><button className="button secondary">Ava päev</button></form>
+    <WorkDayForm key={`${date}-${data.day?.revision??0}`} data={data} {...refs} requestId={crypto.randomUUID()} newJobId={crypto.randomUUID()}/>
   </div>
 }

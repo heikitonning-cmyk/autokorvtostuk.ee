@@ -20,7 +20,6 @@ export function AppShell({ user, view, children }: { user: AppUser; view: AppVie
       <nav className="bottom-nav" aria-label="Rakenduse navigatsioon">
         {managerView ? <>
           <Link href="/manager">Avaleht</Link>
-          <Link href="/manager/calendar">Kalender</Link>
           <Link href="/manager/time">Tunnid</Link>
           <Link href="/manager/customers">Kliendid</Link>
           <Link href="/manager/users">Kasutajad</Link>

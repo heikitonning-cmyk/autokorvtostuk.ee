@@ -1,5 +1,2 @@
 import { redirect } from 'next/navigation'
-
-export default function WorkerCalendarPage() {
-  redirect('/operator?view=calendar')
-}
+export default function CalendarPage() { redirect('/operator') }

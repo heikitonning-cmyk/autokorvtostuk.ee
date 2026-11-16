@@ -36,7 +36,7 @@ function SiteChoices({sites, customers, selected, onChange}: Pick<Props,'sites'|
   </details>
 }
 
-function TimeForm({ employees, sites, customers, running, date, now, entry, onCancel, returnHistory }: Pick<Props,'employees'|'sites'|'customers'|'running'|'now'> & { date:string; entry?:TimeEntry; onCancel:()=>void; returnHistory?:PayrollHistory }) {
+export function TimeForm({ employees, sites, customers, running, date, now, entry, onCancel, returnHistory, returnToEmployee }: Pick<Props,'employees'|'sites'|'customers'|'running'|'now'> & { date:string; entry?:TimeEntry; onCancel:()=>void; returnHistory?:PayrollHistory; returnToEmployee?:boolean }) {
   const [state, action, pending] = useActionState(saveTimeEntry, initial)
   const [employeeIds, setEmployeeIds] = useState<string[]>(entry ? [entry.employee_id] : [])
   const [siteIds, setSiteIds] = useState(entry ? entrySiteIds(entry) : [])
@@ -60,6 +60,7 @@ function TimeForm({ employees, sites, customers, running, date, now, entry, onCa
     <h2>{entry ? (entry.end_minute===null ? 'Paranda ja lõpeta tööaeg' : 'Muuda tööaega') : 'Tööliste tööaeg'}</h2>
     <input type="hidden" name="id" value={entry?.id ?? ''} /><input type="hidden" name="version" value={entry?.updated_at ?? ''} />
     <input type="hidden" name="mode" value={mode}/>
+    {returnToEmployee && <input type="hidden" name="returnToEmployee" value="yes"/>}
     {returnHistory && <><input type="hidden" name="returnView" value="summary"/><input type="hidden" name="returnMonth" value={returnHistory.month}/><input type="hidden" name="returnEmployee" value={returnHistory.employeeId}/><input type="hidden" name="returnScope" value={returnHistory.allDays?'all':'month'}/></>}
     <fieldset disabled={pending} className="payroll-fields stack">
       {!entry && <div className="segmented payroll-tabs" aria-label="Tööaja sisestamise viis">
@@ -132,7 +133,7 @@ function RunningWork({running, employees, sites, now, onEdit}: Pick<Props,'runni
   </section>
 }
 
-function EmployeeForm({ employee }: {employee?:Employee}) {
+export function EmployeeForm({ employee }: {employee?:Employee}) {
   const [state, action, pending] = useActionState(saveEmployee, initial)
   const [name,setName] = useState(employee?.name ?? '')
   const [rate,setRate] = useState(employee ? (employee.hourly_rate_cents / 100).toFixed(2) : '')

@@ -1,40 +1,31 @@
 import Link from 'next/link'
-import { payrollHistoryParams, payrollHistoryRange } from '@/lib/payroll-history'
-import type { PayrollBalance, PayrollPayment } from '@/lib/payroll-payments'
 import { requireUser } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { readAllPages } from '@/lib/pagination'
-import { monthRange, tallinnDate, type Employee, type PayrollSite, type TimeEntry } from '@/lib/payroll'
-import { PayrollWorkspace } from '@/components/PayrollWorkspace'
+import { clock, euros, totals, type Employee } from '@/lib/payroll'
+import { dateLabel, type DayEntry, type DayJob, type WorkDay } from '@/lib/work-days'
+import type { PayrollBalance } from '@/lib/payroll-payments'
+import { HoursTabs } from '@/components/HoursTabs'
+import { EmployeeForm } from '@/components/PayrollWorkspace'
 
-export default async function TimePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function TimePage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   await requireUser('manager')
-  const params = await searchParams
-  const today = tallinnDate()
-  const history=payrollHistoryParams(params,today.slice(0,7))
-  const {month}=history
-  const historyRange=payrollHistoryRange(history)
-  const { from, to } = monthRange(month)
-  const db = await createClient()
-  let data
-  try {
-    data = await Promise.all([
-      readAllPages<Employee>((a,b) => db.from('payroll_employees').select('id,name,hourly_rate_cents,active,updated_at').order('name').order('id').range(a,b)),
-      readAllPages<PayrollSite>((a,b) => db.from('customer_sites').select('id,name,customer_id,active').order('name').order('id').range(a,b)),
-      readAllPages<{id:string;name:string}>((a,b) => db.from('customers').select('id,name').order('name').order('id').range(a,b)),
-      history.allDays && !history.employeeId ? Promise.resolve([] as TimeEntry[]) : readAllPages<TimeEntry>((a,b) => {
-        let query=db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id), job:jobs!payroll_entries_job_id_fkey(address)').not('end_minute','is',null)
-        if(historyRange) query=query.gte('work_date',historyRange.from).lt('work_date',historyRange.to)
-        if(history.employeeId) query=query.eq('employee_id',history.employeeId)
-        return query.order('work_date',{ascending:false}).order('start_minute',{ascending:false}).order('id').range(a,b)
-      }),
-      readAllPages<TimeEntry>((a,b) => db.from('payroll_entries').select('*, sites:payroll_entry_sites(site_id), job:jobs!payroll_entries_job_id_fkey(address)').is('end_minute',null).order('work_date').order('start_minute').order('id').range(a,b)),
-      readAllPages<PayrollPayment>((a,b)=>db.from('payroll_payments').select('id,employee_id,paid_date,amount_cents,note,updated_at,voided_at').gte('paid_date',from).lt('paid_date',to).order('paid_date',{ascending:false}).order('id').range(a,b)),
-      readAllPages<PayrollBalance>((a,b)=>db.rpc('payroll_balances').order('employee_id').range(a,b)),
+  const params=await searchParams, view=params.view==='days'?'days':'workers',db=await createClient()
+  const [employees,balances]=await Promise.all([
+    readAllPages<Employee>((a,b)=>db.from('payroll_employees').select('*').order('name').order('id').range(a,b)),
+    readAllPages<PayrollBalance>((a,b)=>db.rpc('payroll_balances').order('employee_id').range(a,b)),
+  ])
+  const due=balances.reduce((s,b)=>s+Math.max(0,b.balance_cents),0)
+  let dates:string[]=[],days:WorkDay[]=[],entries:DayEntry[]=[],jobs:DayJob[]=[]
+  if(view==='days') {
+    ;[days,entries,jobs]=await Promise.all([
+      readAllPages<WorkDay>((a,b)=>db.from('work_days').select('*').order('work_date',{ascending:false}).range(a,b)),
+      readAllPages<DayEntry>((a,b)=>db.from('payroll_entries').select('*').order('work_date',{ascending:false}).order('id').range(a,b)),
+      readAllPages<DayJob>((a,b)=>db.from('jobs').select('id,address,planned_date,planned_time,planned_end_time,work_day_id,contact_phone,description,driver_employee_id,site_id,updated_at').neq('status','tuhistatud').not('planned_date','is',null).order('planned_date',{ascending:false}).order('id').range(a,b)),
     ])
-  } catch {
-    return <div className="page stack-lg"><h1>Tunnid ja palgad</h1><div className="alert danger" role="alert">Andmeid ei õnnestunud laadida. Proovi leht uuesti avada. Kui viga kordub, vajab mooduli ühendus kontrollimist.</div><Link className="button secondary" href="/manager/time">Proovi uuesti</Link></div>
+    dates=[...new Set([...days.map(d=>d.work_date),...entries.map(e=>e.work_date),...jobs.map(j=>j.planned_date!)])].sort().reverse()
   }
-  const saved = typeof params.saved === 'string'
-  return <PayrollWorkspace key={`${month}-${history.employeeId}-${history.allDays}-${params.saved ?? ''}-${params.view ?? ''}-${params.paymentSaved ?? ''}`} history={history} month={month} today={today} employees={data[0]} sites={data[1]} customers={data[2]} entries={data[3]} running={data[4]} now={new Date().toISOString()} payments={data[5]} balances={data[6]} paymentRequestId={crypto.randomUUID()} showPayments={params.view==='payments'} paymentSaved={typeof params.paymentSaved==='string'} saved={saved} showSummary={saved || params.view === 'summary'} />
+  return <div className="page stack-lg"><div className="page-title-row"><div><p className="eyebrow">Palgaarvestus</p><h1>Tunnid ja palgad</h1></div><Link className="button primary" href="/manager/jobs/new">+ Lisa tööpäev</Link></div><HoursTabs view={view}/>
+    {view==='workers'?<><div className="day-team-heading"><h2>Töölised</h2><strong>Saada kokku {euros(due)}</strong></div><div className="workers-grid">{employees.map(e=>{const b=balances.find(b=>b.employee_id===e.id);return <Link className="detail-card worker-card stack" href={`/manager/time/workers/${e.id}`} key={e.id}><div className="day-team-heading"><h2>{e.name}</h2><span aria-hidden="true">→</span></div><small className="muted">{euros(e.hourly_rate_cents)}/h{e.active?'':' · arhiveeritud'}</small><div className="payroll-balance-grid"><div><span>Teenitud</span><strong>{euros(b?.earned_cents??0)}</strong></div><div><span>Makstud</span><strong>{euros(b?.paid_cents??0)}</strong></div><div className="payroll-due"><span>{(b?.balance_cents??0)<0?'Ettemaks':'Saada'}</span><strong>{euros(Math.abs(b?.balance_cents??0))}</strong></div></div></Link>})}</div><details className="detail-card"><summary>+ Lisa tööline</summary><div className="top-gap"><EmployeeForm/></div></details></>:<><p className="muted">Ava päev, et muuta korraga meeskonna tööaega ja selle päeva objekte.</p><div className="stack">{dates.map(date=>{const day=days.find(d=>d.work_date===date),es=entries.filter(e=>e.work_date===date),js=jobs.filter(j=>j.planned_date===date),sum=totals(es);return <Link className="detail-card day-list-card" key={date} href={`/manager/time/days/${date}`}><div><h2>{dateLabel(date)}</h2><p>{day?`${clock(day.start_minute)}–${clock(day.end_minute)}${day.next_day?' (+1 päev)':''}`:'Ava päeva ajad'} · {new Set(es.map(e=>e.employee_id)).size} töölist · {js.length} objekti</p><small className="muted">{js.map(j=>j.address).filter(Boolean).join(' · ')||'Objekte pole lisatud'}</small></div><strong>{euros(sum.cents)} →</strong></Link>})}{!dates.length&&<div className="empty">Tööpäevi pole veel lisatud.</div>}</div></>}
+  </div>
 }

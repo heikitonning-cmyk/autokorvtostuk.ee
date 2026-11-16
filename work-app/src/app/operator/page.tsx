@@ -35,7 +35,7 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     searchParams,
   ])
   const errorText = Array.isArray(params.error) ? params.error[0] : params.error
-  const view = params.view === 'history' ? 'history' : params.view === 'calendar' ? 'calendar' : 'active'
+  const view = params.view === 'history' ? 'history' : 'active'
 
   const today = tallinnDate()
   const filteredJobs = operatorPlanJobs(jobs, view, today)
@@ -55,8 +55,8 @@ export default async function OperatorPage({ searchParams }: { searchParams: Pro
     {errorText && <div className="alert danger">{errorText}</div>}
 
     <section>
-      <div className="section-title"><h2>{view === 'history' ? 'Varasemad tööd' : view === 'calendar' ? 'Kalender' : 'Tööplaan'}</h2></div>
-      <div className="segmented"><Link className={view === 'active' ? 'active' : ''} href="/operator">Tänased ja tulevased</Link><Link className={view === 'history' ? 'active' : ''} href="?view=history">Varasemad tööd</Link><Link className={view === 'calendar' ? 'active' : ''} href="?view=calendar">Kalender</Link></div>
+      <div className="section-title"><h2>{view === 'history' ? 'Varasemad tööd' : 'Tööplaan'}</h2></div>
+      <div className="segmented"><Link className={view === 'active' ? 'active' : ''} href="/operator">Tänased ja tulevased</Link><Link className={view === 'history' ? 'active' : ''} href="?view=history">Varasemad tööd</Link></div>
       <div className="calendar-list">{orderWorkPlanDates(groups.keys(), view, today).map(date => <section key={date}>
         <h2>{date === today ? 'Täna · ' : ''}{longDate(date)}</h2>
         <div className="job-list">{groups.get(date)?.map((job: any) => <PlanJobCard key={job.id} job={job} />)}</div>
