@@ -25,8 +25,8 @@ export async function savePayrollPayment(_previous:ActionState,form:FormData):Pr
     const {error}=await db.rpc('save_payroll_payment',{p_id:id,p_employee_id:employee,p_paid_date:date,p_amount_cents:amount,p_note:note,p_expected_version:version||null})
     if(error) return {error:error.code==='P0001'?conflict:'Makse salvestamine ei õnnestunud. Kontrolli summat, kuupäeva ja töölist; sisestus on alles.'}
   } catch {return {error:'Ühendus katkes. Proovi uuesti; sama makse korduv saatmine topeltmakset ei lisa.'}}
-  revalidatePath('/manager/time')
-  redirect(`/manager/time?month=${date.slice(0,7)}&view=payments&paymentSaved=${Date.now()}`)
+  revalidatePath('/manager/time','layout')
+  redirect(`/manager/time/workers/${employee}?paymentSaved=${Date.now()}#payments`)
 }
 
 export async function voidPayrollPayment(_previous:ActionState,form:FormData):Promise<ActionState> {
@@ -38,6 +38,6 @@ export async function voidPayrollPayment(_previous:ActionState,form:FormData):Pr
     const {data,error}=await db.from('payroll_payments').update({voided_at:new Date().toISOString()}).eq('id',id).eq('updated_at',version).is('voided_at',null).select('id').maybeSingle()
     if(error||!data) return {error:conflict}
   } catch {return {error:'Ühendus katkes. Värskenda lehte ja kontrolli, kas makse tühistati.'}}
-  revalidatePath('/manager/time')
+  revalidatePath('/manager/time','layout')
   return {success:'Makse tühistatud. Töölise saadaolev summa on uuesti arvutatud.'}
 }

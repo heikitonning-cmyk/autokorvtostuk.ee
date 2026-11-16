@@ -23,20 +23,20 @@ test('v1 contains the critical manager and operator routes', () => {
   ]) assert.equal(existsSync(resolve(root, path)), true, path)
 })
 
-test('new and edit routes use compact payroll-driver dispatch', () => {
+test('new work opens the shared paid day with independent object appointments', () => {
   const page = readFileSync(resolve(root, 'src/app/manager/jobs/new/page.tsx'), 'utf8')
-  const form = readFileSync(resolve(root, 'src/components/SimpleJobForm.tsx'), 'utf8')
-  assert.match(page, /SimpleJobForm/)
-  assert.match(form, /name="date" type="date"/)
-  assert.match(form, /name="time" type="time"/)
-  assert.match(form, /name="driver"/)
+  const form = readFileSync(resolve(root, 'src/components/WorkDayForm.tsx'), 'utf8')
+  assert.match(page, /WorkDayForm/)
+  assert.match(page, /name="date" type="date"/)
+  assert.match(form, /Tellijale algus/)
+  assert.match(form, /driver_employee_id/)
   assert.doesNotMatch(form, /operatorId|JobPricingFields|JobStopsEditor/)
 })
 
 test('only manager edits the compact work form; old driver edit and finish links redirect', () => {
   const managerEdit = readFileSync(resolve(root, 'src/app/manager/jobs/[id]/edit/page.tsx'), 'utf8')
   assert.match(managerEdit, /requireUser\('manager'\)/)
-  assert.match(managerEdit, /SimpleJobForm/)
+  assert.match(managerEdit, /manager\/time\/days/)
   for (const route of ['edit','finish']) {
     const page = readFileSync(resolve(root, `src/app/operator/jobs/[id]/${route}/page.tsx`), 'utf8')
     assert.match(page, /redirect/)
@@ -52,10 +52,10 @@ test('job reference data includes customer sites', () => {
 })
 
 test('compact form offers manual address and hides the optional address book', () => {
-  const form = readFileSync(resolve(root, 'src/components/SimpleJobForm.tsx'), 'utf8')
-  assert.match(form, /name="address"/)
-  assert.match(form, /<details className="simple-address-picker">/)
-  assert.match(form, /Näita ka Neste aadresse/)
+  const form = readFileSync(resolve(root, 'src/components/WorkDayForm.tsx'), 'utf8')
+  assert.match(form, /value={j.address}/)
+  assert.match(form, /<details><summary>Vali salvestatud aadress/)
+  assert.match(form, /Näita Neste aadresse/)
   assert.match(form, /visibleDispatchSites/)
 })
 
@@ -114,7 +114,7 @@ test('worker landing page shows the shared work plan and its history', () => {
   assert.match(page, /Tööplaan/)
   assert.doesNotMatch(page, /VÕTA TÖÖ/)
   assert.doesNotMatch(shell, /href="\/operator\/calendar"/)
-  assert.match(oldCalendar, /redirect\(['"]\/operator\?view=calendar['"]\)/)
+  assert.match(oldCalendar, /redirect\(['"]\/operator['"]\)/)
 })
 
 test('multi-stop editor supports search, many selected sites and mobile reorder', () => {
