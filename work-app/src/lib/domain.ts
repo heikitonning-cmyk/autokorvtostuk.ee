@@ -33,6 +33,7 @@ export interface WorkType {
 
 export interface PriceSettings {
   hourlyRate: number
+  driverHourlyRate?: number
   minimumOrder: number
   driveHourlyRate: number
   kmRate: number

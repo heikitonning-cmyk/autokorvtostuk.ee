@@ -1,12 +1,15 @@
 'use client'
 import Link from 'next/link'
+import type { PriceSettings } from '@/lib/domain'
+import { CustomerPriceFields } from '@/components/CustomerPriceFields'
+import { customerPrice, defaultCustomerPricing, initialCustomerPricing, type CustomerPricing } from '@/lib/customer-pricing'
 import { startTransition, useActionState, useState } from 'react'
 import { saveWorkDay } from '@/app/manager/time/day-actions'
 import { calculateTime, euros, hours, parseRate, totals, wageCents, type ActionState } from '@/lib/payroll'
 import { visibleDispatchSites, type DispatchEmployee, type DispatchSite } from '@/lib/simple-dispatch'
 import { dayDefaults, dayExpected, initialWorkers, timePayload, type DayData, type TimeDraft, type WorkerDraft } from '@/lib/work-days'
 
-type JobDraft={id:string;address:string;planned_time:string;planned_end_time:string;contact_phone:string;description:string;driver_employee_id:string;site_id:string}
+type JobDraft={id:string;address:string;planned_time:string;planned_end_time:string;contact_phone:string;description:string;driver_employee_id:string;site_id:string;customer_pricing:CustomerPricing}
 function TimeInputs({value,onChange,prefix}:{value:TimeDraft;onChange:(value:TimeDraft)=>void;prefix:string}) {
   return <><div className="form-grid two"><label>{prefix} algus<input type="time" required value={value.start} onChange={e=>onChange({...value,start:e.target.value})}/></label><label>{prefix} lõpp<input type="time" required value={value.end} onChange={e=>onChange({...value,end:e.target.value})}/></label></div>
     <details><summary>Paus ja öötöö{Number(value.pause)>0?` · ${value.pause} min`:''}{value.overnight?' · järgmine päev':''}</summary><div className="form-grid two top-gap"><label>Tasustamata paus, min<input type="number" min={0} max={1439} value={value.pause} onChange={e=>onChange({...value,pause:e.target.value})}/></label><label className="check-row"><input type="checkbox" checked={value.overnight} onChange={e=>onChange({...value,overnight:e.target.checked})}/> Lõpp järgmisel päeval</label></div></details></>
@@ -15,11 +18,11 @@ function SavedAddress({sites,onChoose}:{sites:DispatchSite[];onChoose:(site:Disp
   const [search,setSearch]=useState(''),[neste,setNeste]=useState(false)
   return <details><summary>Vali salvestatud aadress</summary><div className="stack top-gap"><input aria-label="Otsi aadressi" placeholder="Otsi aadressi" value={search} onChange={e=>setSearch(e.target.value)}/><label className="check-row"><input type="checkbox" checked={neste} onChange={e=>setNeste(e.target.checked)}/> Näita Neste aadresse</label><select aria-label="Salvestatud aadress" value="" onChange={e=>{const site=sites.find(s=>s.id===e.target.value);if(site) onChoose(site)}}><option value="">Vali aadress</option>{visibleDispatchSites(sites,neste,search).map(s=><option key={s.id} value={s.id}>{s.address||s.name}</option>)}</select></div></details>
 }
-export function WorkDayForm({data,employees,sites,requestId,newJobId}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string}) {
+export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings}) {
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
   const [shared,setShared]=useState(()=>dayDefaults(data)),[workers,setWorkers]=useState(()=>initialWorkers(data))
-  const blank=(id:string):JobDraft=>({id,address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:''})
-  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??''})),...(newJobId?[blank(newJobId)]:[])])
+  const blank=(id:string):JobDraft=>({id,address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
+  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
   const [localError,setLocalError]=useState('')
   const [draftRequest]=useState(requestId)
   const [expected]=useState(()=>dayExpected(data))
@@ -29,11 +32,14 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId}:{data:DayD
   const rate=(w:WorkerDraft)=>w.is_new?parseRate(w.rate??''):data.entries.find(e=>e.employee_id===w.id)?.hourly_rate_cents??employees.find(e=>e.id===w.id)?.hourly_rate_cents??0
   let error='',preview:{id:string;name:string;minutes:number;cents:number}[]=[]
   try {timePayload(shared);preview=workers.map(w=>{const v=w.override?w:shared;const minutes=calculateTime(v.start,v.end,v.pause,v.overnight).paidMinutes;return {id:w.id,name:workerName(w),minutes,cents:wageCents(minutes,rate(w))}})} catch(e) {error=(e as Error).message}
+  let pricingError=''
+  try {for(const j of jobs) customerPrice(j.customer_pricing,j.planned_time,j.planned_end_time)} catch(e){pricingError=(e as Error).message}
   const before=totals(data.entries),after=preview.reduce((s,w)=>s+w.cents,0)
   const running=data.entries.filter(e=>e.end_minute===null)
   return <form action={action} onSubmit={e=>{
     e.preventDefault();setLocalError('')
     try {
+      for(const j of jobs) customerPrice(j.customer_pricing,j.planned_time,j.planned_end_time)
       const payload={requestId:draftRequest,expected,day:timePayload(shared),jobs,workers:workers.map(w=>({id:w.id,override:w.override,...timePayload(w.override?w:shared),...(w.is_new?{is_new:true,name:w.name,hourly_rate_cents:rate(w)}:{})}))}
       const form=new FormData();form.set('date',data.date);form.set('payload',JSON.stringify(payload));startTransition(()=>action(form))
     } catch(err){setLocalError((err as Error).message)}
@@ -53,6 +59,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId}:{data:DayD
           <SavedAddress sites={sites} onChoose={s=>updateJob(j.id,{address:s.address||s.name,site_id:s.id})}/>
           <div className="form-grid two"><label>Tellijale algus<input type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label><label>Tellijale lõpp<input type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label></div>
           <div className="form-grid two"><label>Tellija telefon<input type="tel" maxLength={50} value={j.contact_phone} onChange={e=>updateJob(j.id,{contact_phone:e.target.value})}/></label><label>Juht<select value={j.driver_employee_id} onChange={e=>updateJob(j.id,{driver_employee_id:e.target.value})}><option value="">Määran hiljem</option>{workers.map(w=><option key={w.id} value={w.id}>{workerName(w)}</option>)}</select></label></div>
+          <CustomerPriceFields value={j.customer_pricing} start={j.planned_time} end={j.planned_end_time} onChange={value=>updateJob(j.id,{customer_pricing:value})}/>
           <label>Töö kirjeldus<textarea rows={2} maxLength={2000} value={j.description} onChange={e=>updateJob(j.id,{description:e.target.value})}/></label>
         </article>)}
       </section>
@@ -60,7 +67,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId}:{data:DayD
         {data.entries.length>0&&<p className="muted">Praegu kirjas {euros(before.cents)}. Salvestamisel asenduvad selle päeva tunnid ülal näidatud aegadega. Maksete ajalugu säilib.</p>}
         {!workers.length&&<p className="muted">Meeskond on määramata. Objektid salvestatakse, palgakandeid ei lisata.</p>}
         {running.length>0&&<div className="alert danger">Lõpeta esmalt käimasolevad tööajad.{running.map(e=><p key={e.id}><Link href={`/manager/time/entries/${e.id}`}>Ava {employees.find(w=>w.id===e.employee_id)?.name??'töölise'} tööaeg</Link></p>)}</div>}
-        <div className="form-grid two"><Link className="button secondary" href="/manager">Tagasi tööde juurde</Link><button className="button primary" disabled={pending||!!error||!!running.length}>{pending?'Salvestan…':'Salvesta päev'}</button></div>
+        <div className="form-grid two"><Link className="button secondary" href="/manager">Tagasi tööde juurde</Link><button className="button primary" disabled={pending||!!error||!!pricingError||!!running.length}>{pending?'Salvestan…':'Salvesta päev'}</button></div>
       </section>
     </fieldset>{(state.error||localError)&&<p className="alert danger" role="alert">{state.error||localError}</p>}
   </form>
