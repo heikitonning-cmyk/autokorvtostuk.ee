@@ -19,6 +19,11 @@ export function CustomerPriceFields({value:p,start,end,onChange}:{value:Customer
     {p.driver_rate>0&&<div className="customer-charge-row"><span>Juht · {euros(p.driver_rate)}/h</span><strong>{euros(price?.driver??0)}</strong></div>}
     <div className="customer-charge-row"><label className="check-row"><input type="checkbox" checked={p.operator_work} onChange={e=>change({operator_work:e.target.checked})}/>Juht teeb töö <small>+{euros(p.operator_rate)}/h</small></label><strong>{euros(price?.operator??0)}</strong></div>
     <div className="customer-charge-row"><label className="helper-count">Abiliste arv<input type="number" min={0} max={50} step={1} required value={p.helper_count} onChange={e=>change({helper_count:Number(e.target.value)})}/><small>{euros(p.helper_rate)}/h inimese kohta</small></label><strong>{euros(price?.helper??0)}</strong></div>
+    <div className="form-grid two">
+      <label className="check-row"><input type="checkbox" checked={p.drive_minutes===60&&p.km===0} onChange={e=>change(e.target.checked?{drive_minutes:60,km:0}:{drive_minutes:0})}/>Tallinn — 1 h sõitu ({euros(p.drive_rate)})</label>
+      <label>Väljaspool Tallinna: km kokku<input type="number" min={0} max={10000} step="0.01" required value={p.km} onChange={e=>{const km=Number(e.target.value);change(km>0?{km,drive_minutes:0}:{km})}}/><small className="muted">{euros(p.km_rate)}/km · sisesta arvestatav sõidumaa kokku</small></label>
+    </div>
+    <small className="muted">Vali Tallinna sõidutasu või sisesta kilomeetrid. Kilomeetrite sisestamine asendab Tallinna sõidutasu. Sõidule „Juht teeb töö” lisatasu ei rakendu.</small>
     {price?.minutes!=null&&price.minutes!==price.actualMinutes&&<small>Arvestatav aeg {hours(price.minutes)}</small>}
     {!!price?.drive&&<div className="customer-charge-row"><small>Sõiduaeg {hours(p.drive_minutes)}</small><strong>{euros(price.drive)}</strong></div>}
     {!!price?.distance&&<div className="customer-charge-row"><small>Transport {p.km} km</small><strong>{euros(price.distance)}</strong></div>}
@@ -33,7 +38,7 @@ export function CustomerPriceFields({value:p,start,end,onChange}:{value:Customer
       {p.agreed_total!==null&&<button className="text-button" type="button" onClick={()=>change({agreed_total:null})}>Arvuta hind tundide järgi</button>}
       <small className="muted">Siinsed hinnad kehtivad ainult sellele objektile. <Link href="/manager/settings" target="_blank">Ava üldhinnad</Link></small>
     </div></details>
-    <details><summary>Sõit ja hinnakorrektsioon</summary><div className="form-grid two top-gap"><MinutesInput label="Sõiduaeg, min" value={p.drive_minutes} onChange={v=>change({drive_minutes:v as number})}/><MoneyInput label="Sõit, €/h" value={p.drive_rate} onChange={v=>change({drive_rate:v as number})}/><label>Transport, km<input type="number" min={0} max={10000} step="0.01" required value={p.km} onChange={e=>change({km:Number(e.target.value)})}/></label><MoneyInput label="Kilomeetrihind, €/km" value={p.km_rate} onChange={v=>change({km_rate:v as number})}/><MoneyInput signed label="Lisatasu / soodustus, €" value={p.adjustment} onChange={v=>change({adjustment:v as number})}/></div></details>
+    <details><summary>Sõit ja hinnakorrektsioon</summary><div className="form-grid two top-gap"><MinutesInput label="Sõiduaeg, min" value={p.drive_minutes} onChange={v=>change({drive_minutes:v as number})}/><MoneyInput label="Sõit, €/h" value={p.drive_rate} onChange={v=>change({drive_rate:v as number})}/><MoneyInput label="Kilomeetrihind, €/km" value={p.km_rate} onChange={v=>change({km_rate:v as number})}/><MoneyInput signed label="Lisatasu / soodustus, €" value={p.adjustment} onChange={v=>change({adjustment:v as number})}/></div></details>
     {error&&<p className="error-text" role="alert">{error}</p>}
   </section>
 }
