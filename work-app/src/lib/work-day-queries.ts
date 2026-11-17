@@ -12,3 +12,18 @@ export async function getWorkDay(date:string):Promise<DayData> {
   if(day.error) throw day.error
   return {date,day:day.data,jobs:jobs.map(j=>({...j,contact_phone:j.contact_phone??j.website_booking_details?.phone??j.customer?.phone??null})),entries}
 }
+
+export async function getDailyPayrollCosts(dates:string[]) {
+  const costs:Record<string,{cents:number;entries:number;running:number}>={}
+  if(!dates.length) return costs
+  const sorted=[...dates].sort(),db=await createClient()
+  const entries=await readAllPages<{work_date:string;wage_cents:number|null;end_minute:number|null}>((a,b)=>
+    db.from('payroll_entries').select('work_date,wage_cents,end_minute').gte('work_date',sorted[0]).lte('work_date',sorted[sorted.length-1]).order('work_date').order('id').range(a,b))
+  for(const entry of entries) {
+    const day=costs[entry.work_date]??={cents:0,entries:0,running:0}
+    day.entries++
+    if(entry.end_minute===null) day.running++
+    else day.cents+=Number(entry.wage_cents??0)
+  }
+  return costs
+}
