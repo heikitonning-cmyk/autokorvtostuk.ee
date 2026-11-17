@@ -58,7 +58,11 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
           <label>Aadress<input required maxLength={500} value={j.address} placeholder="Tänav, maja, linn" onChange={e=>updateJob(j.id,{address:e.target.value,site_id:''})}/></label>
           <SavedAddress sites={sites} onChoose={s=>updateJob(j.id,{address:s.address||s.name,site_id:s.id})}/>
           <div className="form-grid two"><label>Tellijale algus<input type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label><label>Tellijale lõpp<input type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label></div>
-          <div className="form-grid two"><label>Tellija telefon<input type="tel" maxLength={50} value={j.contact_phone} onChange={e=>updateJob(j.id,{contact_phone:e.target.value})}/></label><label>Juht<select value={j.driver_employee_id} onChange={e=>updateJob(j.id,{driver_employee_id:e.target.value})}><option value="">Määran hiljem</option>{workers.map(w=><option key={w.id} value={w.id}>{workerName(w)}</option>)}</select></label></div>
+          <div className="form-grid two"><label>Tellija telefon<input type="tel" maxLength={50} value={j.contact_phone} onChange={e=>updateJob(j.id,{contact_phone:e.target.value})}/></label><label>Juht<select value={j.driver_employee_id} onChange={e=>{
+            const id=e.target.value
+            if(id) setWorkers(list=>list.some(w=>w.id===id)?list:[...list,{id,...shared,override:false}])
+            updateJob(j.id,{driver_employee_id:id})
+          }}><option value="">Määran hiljem</option>{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}{workers.filter(w=>w.is_new).map(w=><option key={w.id} value={w.id}>{workerName(w)}</option>)}</select></label></div>
           <CustomerPriceFields value={j.customer_pricing} start={j.planned_time} end={j.planned_end_time} onChange={value=>updateJob(j.id,{customer_pricing:value})}/>
           <label>Töö kirjeldus<textarea rows={2} maxLength={2000} value={j.description} onChange={e=>updateJob(j.id,{description:e.target.value})}/></label>
         </article>)}
