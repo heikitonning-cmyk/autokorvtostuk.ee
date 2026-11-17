@@ -45,7 +45,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
     } catch(err){setLocalError((err as Error).message)}
   }} className="stack-lg">
     <fieldset disabled={pending} className="payroll-fields stack-lg">
-      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Ühine aeg määrab meeskonna töötunnid ja palga.</p></div><TimeInputs prefix="Päeva" value={shared} onChange={setShared}/>
+      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Päeva algus ja lõpp määravad juhi ning teiste tööliste palgatunnid. Tellija tööaeg sisesta objekti juurde.</p></div><TimeInputs prefix="Päeva" value={shared} onChange={setShared}/>
         <div className="day-team-heading"><h3>Meeskond</h3><button type="button" className="text-button" onClick={()=>setWorkers(list=>[...list,{id:crypto.randomUUID(),...shared,override:false,is_new:true,name:'',rate:''}])}>+ Uus tööline</button></div>
         <div className="day-worker-choices">{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><label className={`day-worker-chip ${workers.some(w=>w.id===e.id)?'selected':''}`} key={e.id}><input type="checkbox" checked={workers.some(w=>w.id===e.id)} onChange={event=>{
           if(event.target.checked) setWorkers(list=>[...list,{id:e.id,...shared,override:false}]);else {setWorkers(list=>list.filter(w=>w.id!==e.id));setJobs(list=>list.map(j=>j.driver_employee_id===e.id?{...j,driver_employee_id:''}:j))}
@@ -63,11 +63,6 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
             if(id) setWorkers(list=>list.some(w=>w.id===id)?list:[...list,{id,...shared,override:false}])
             updateJob(j.id,{driver_employee_id:id})
           }}><option value="">Määran hiljem</option>{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}{workers.filter(w=>w.is_new).map(w=><option key={w.id} value={w.id}>{workerName(w)}</option>)}</select></label></div>
-          {workers.filter(w=>w.id===j.driver_employee_id).map(w=><section className="day-new-worker stack" key={w.id} aria-label="Juhi tööaeg palgaarvestusse">
-            <div><h3>Juhi tööaeg · {workerName(w)}</h3><small className="muted">Algus alates väljasõidust. See on juhi kogu päeva tasustatav aeg ja kehtib kõigil selle päeva objektidel.</small></div>
-            <TimeInputs prefix="Juhi" value={w.override?w:shared} onChange={value=>updateWorker(w.id,{...value,override:true})}/>
-            {w.override?<button type="button" className="text-button" onClick={()=>updateWorker(w.id,{...shared,override:false})}>Kasuta päeva ühist aega</button>:<small className="muted">Praegu kasutab päeva ühist aega. Muutmisel rakendub juhile eraldi aeg.</small>}
-          </section>)}
           <CustomerPriceFields value={j.customer_pricing} start={j.planned_time} end={j.planned_end_time} onChange={value=>updateJob(j.id,{customer_pricing:value})}/>
           <label>Töö kirjeldus<textarea rows={2} maxLength={2000} value={j.description} onChange={e=>updateJob(j.id,{description:e.target.value})}/></label>
         </article>)}
