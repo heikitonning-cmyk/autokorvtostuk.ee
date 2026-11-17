@@ -19,6 +19,7 @@ function SavedAddress({sites,onChoose}:{sites:DispatchSite[];onChoose:(site:Disp
   return <details><summary>Vali salvestatud aadress</summary><div className="stack top-gap"><input aria-label="Otsi aadressi" placeholder="Otsi aadressi" value={search} onChange={e=>setSearch(e.target.value)}/><label className="check-row"><input type="checkbox" checked={neste} onChange={e=>setNeste(e.target.checked)}/> Näita Neste aadresse</label><select aria-label="Salvestatud aadress" value="" onChange={e=>{const site=sites.find(s=>s.id===e.target.value);if(site) onChoose(site)}}><option value="">Vali aadress</option>{visibleDispatchSites(sites,neste,search).map(s=><option key={s.id} value={s.id}>{s.address||s.name}</option>)}</select></div></details>
 }
 export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings}) {
+  const [date,setDate]=useState(data.date)
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
   const [shared,setShared]=useState(()=>dayDefaults(data)),[workers,setWorkers]=useState(()=>initialWorkers(data))
   const blank=(id:string):JobDraft=>({id,address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
@@ -41,11 +42,11 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
     try {
       for(const j of jobs) customerPrice(j.customer_pricing,j.planned_time,j.planned_end_time)
       const payload={requestId:draftRequest,expected,day:timePayload(shared),jobs,workers:workers.map(w=>({id:w.id,override:w.override,...timePayload(w.override?w:shared),...(w.is_new?{is_new:true,name:w.name,hourly_rate_cents:rate(w)}:{})}))}
-      const form=new FormData();form.set('date',data.date);form.set('payload',JSON.stringify(payload));startTransition(()=>action(form))
+      const form=new FormData();form.set('date',data.date);form.set('targetDate',date);form.set('payload',JSON.stringify(payload));startTransition(()=>action(form))
     } catch(err){setLocalError((err as Error).message)}
   }} className="stack-lg">
     <fieldset disabled={pending} className="payroll-fields stack-lg">
-      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Päeva algus ja lõpp määravad juhi ning teiste tööliste palgatunnid. Tellija tööaeg sisesta objekti juurde.</p></div><TimeInputs prefix="Päeva" value={shared} onChange={setShared}/>
+      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Päeva algus ja lõpp määravad juhi ning teiste tööliste palgatunnid. Tellija tööaeg sisesta objekti juurde.</p></div>{!newJobId&&<label>Kuupäev<input type="date" required min="2000-01-01" max="2099-12-31" value={date} onChange={e=>setDate(e.target.value)}/></label>}{date!==data.date&&<p className="muted">Salvestamisel liiguvad kõik selle päeva objektid ja palgatunnid valitud kuupäevale.</p>}<TimeInputs prefix="Päeva" value={shared} onChange={setShared}/>
         <div className="day-team-heading"><h3>Meeskond</h3><button type="button" className="text-button" onClick={()=>setWorkers(list=>[...list,{id:crypto.randomUUID(),...shared,override:false,is_new:true,name:'',rate:''}])}>+ Uus tööline</button></div>
         <div className="day-worker-choices">{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><label className={`day-worker-chip ${workers.some(w=>w.id===e.id)?'selected':''}`} key={e.id}><input type="checkbox" checked={workers.some(w=>w.id===e.id)} onChange={event=>{
           if(event.target.checked) setWorkers(list=>[...list,{id:e.id,...shared,override:false}]);else {setWorkers(list=>list.filter(w=>w.id!==e.id));setJobs(list=>list.map(j=>j.driver_employee_id===e.id?{...j,driver_employee_id:''}:j))}
