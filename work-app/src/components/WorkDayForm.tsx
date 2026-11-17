@@ -63,6 +63,11 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
             if(id) setWorkers(list=>list.some(w=>w.id===id)?list:[...list,{id,...shared,override:false}])
             updateJob(j.id,{driver_employee_id:id})
           }}><option value="">Määran hiljem</option>{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}{workers.filter(w=>w.is_new).map(w=><option key={w.id} value={w.id}>{workerName(w)}</option>)}</select></label></div>
+          {workers.filter(w=>w.id===j.driver_employee_id).map(w=><section className="day-new-worker stack" key={w.id} aria-label="Juhi tööaeg palgaarvestusse">
+            <div><h3>Juhi tööaeg · {workerName(w)}</h3><small className="muted">Algus alates väljasõidust. See on juhi kogu päeva tasustatav aeg ja kehtib kõigil selle päeva objektidel.</small></div>
+            <TimeInputs prefix="Juhi" value={w.override?w:shared} onChange={value=>updateWorker(w.id,{...value,override:true})}/>
+            {w.override?<button type="button" className="text-button" onClick={()=>updateWorker(w.id,{...shared,override:false})}>Kasuta päeva ühist aega</button>:<small className="muted">Praegu kasutab päeva ühist aega. Muutmisel rakendub juhile eraldi aeg.</small>}
+          </section>)}
           <CustomerPriceFields value={j.customer_pricing} start={j.planned_time} end={j.planned_end_time} onChange={value=>updateJob(j.id,{customer_pricing:value})}/>
           <label>Töö kirjeldus<textarea rows={2} maxLength={2000} value={j.description} onChange={e=>updateJob(j.id,{description:e.target.value})}/></label>
         </article>)}
