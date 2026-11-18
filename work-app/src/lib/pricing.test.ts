@@ -39,7 +39,7 @@ test('price snapshot is not changed by later settings edits', () => {
   assert.equal(snapshot.capturedAt, '2026-08-22T16:00:00.000Z')
 })
 
-test('operator work adds only on-site hours after the existing minimum', () => {
+test('operator work charges only on-site hours; Tallinn travel is included in the total', () => {
   const result = calculatePrice({ liftHours: 1, driveHours: 1, km: 0, helperHours: 0, adjustment: 0, operatorDoesWork: true }, settings)
   assert.equal(result.operatorWork, 15)
   assert.equal(result.total, 105)
@@ -52,8 +52,8 @@ test('operator work excludes outside-Tallinn mileage and combines with helpers',
   assert.equal(result.total, 230)
 })
 
-test('minimum does not absorb the optional operator fee', () => {
-  assert.equal(calculatePrice({ liftHours: 1, driveHours: 0, km: 0, helperHours: 0, adjustment: 0, operatorDoesWork: true }, settings).total, 105)
+test('minimum covers the entire order including optional operator work', () => {
+  assert.equal(calculatePrice({ liftHours: 1, driveHours: 0, km: 0, helperHours: 0, adjustment: 0, operatorDoesWork: true }, settings).total, 90)
 })
 
 test('actual operator hours can exclude travel within a multi-stop job', () => {
