@@ -62,9 +62,9 @@ export function customerPrice(p:CustomerPricing,start:string,end:string) {
   const operator=p.operator_work?amount(p.operator_minutes??minutes,p.operator_rate):0
   const helper=amount(p.helper_minutes??minutes,p.helper_rate,p.helper_count)
   const drive=amount(p.drive_minutes,p.drive_rate),distance=Math.round(p.km*p.km_rate)
-  const base=lift+driver+helper+drive+distance+p.adjustment
+  const base=lift+driver+operator+helper+drive+distance+p.adjustment
   const minimumTopUp=Math.max(0,p.minimum-base)
-  const calculated=minutes===null?null:Math.max(p.minimum,base)+operator
+  const calculated=minutes===null?null:Math.max(p.minimum,base)
   const total=p.agreed_total??calculated
   if(total!==null&&total>999999999) throw new Error('Objekti hind ületab lubatud piiri.')
   return {actualMinutes,minutes,lift,driver,operator,helper,drive,distance,minimumTopUp,calculated,total}
