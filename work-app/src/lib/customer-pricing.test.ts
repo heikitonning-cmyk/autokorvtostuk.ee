@@ -34,3 +34,17 @@ test('invalid rates, minutes, counts, fractions and oversized prices fail rather
     assert.throws(()=>customerPrice({...defaultCustomerPricing(settings),...patch} as any,'08:00','15:00'))
   }
 })
+
+test('minimum covers the complete order with or without operator labour',()=>{
+  const p={...defaultCustomerPricing(settings),km:28}
+  for(const operator_work of [false,true]) {
+    const result=customerPrice({...p,operator_work},'10:00','11:00')
+    assert.equal(result.total,9000)
+    assert.equal(result.minimumTopUp,operator_work?200:1700)
+    assert.equal(result.total,result.lift+result.driver+result.operator+result.helper+result.drive+result.distance+result.minimumTopUp)
+  }
+  assert.equal(customerPrice({...p,operator_work:true,km:0},'10:00','11:00').total,9000)
+  assert.equal(customerPrice({...p,operator_work:true},'10:00','12:00').total,14800)
+  assert.equal(customerPrice({...p,operator_work:true,km:0,drive_minutes:60},'10:00','11:00').total,10500)
+  assert.equal(customerPrice({...p,operator_work:true,agreed_total:8800},'10:00','11:00').total,8800)
+})

@@ -41,7 +41,7 @@ export function calculatePrice(input: PriceInput, settings: PriceSettings): Pric
     : 0
   const adjustment = money(input.adjustment)
   const subtotal = money(lift + drive + distance + helper + adjustment)
-  const total = money(Math.max(settings.minimumOrder, subtotal) + operatorWork)
+  const total = money(Math.max(settings.minimumOrder, subtotal + operatorWork))
 
   return { lift, drive, distance, helper, operatorWork, adjustment, subtotal: money(subtotal + operatorWork), total }
 }
