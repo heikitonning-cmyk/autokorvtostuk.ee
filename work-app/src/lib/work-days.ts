@@ -38,3 +38,8 @@ export function dayExpected(data:DayData) {
   const versions=(rows:{id:string;updated_at:string}[])=>rows.map(({id,updated_at})=>({id,updated_at}))
   return {revision:data.day?.revision??0,jobs:versions(data.jobs),entries:versions(data.entries)}
 }
+
+/** Editing the shared day intentionally reapplies its time to every selected worker. */
+export function applySharedTime(workers:WorkerDraft[],shared:TimeDraft):WorkerDraft[] {
+  return workers.map(worker=>({...worker,...shared,override:false}))
+}
