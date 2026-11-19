@@ -4,11 +4,11 @@ import { currentUser } from '@/lib/session'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!user || !user.active) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const { id: jobId } = await params
   const supabase = await createClient()
-  const { data: job } = await supabase.from('jobs').select('id,operator_id').eq('id', jobId).single()
-  if (!job || (user.role === 'operator' && job.operator_id !== user.id)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const { data: job } = await supabase.from('jobs').select('id,status').eq('id', jobId).single()
+  if (!job || (user.role !== 'manager' && (user.role !== 'operator' || job.status === 'tuhistatud'))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const form = await request.formData()
   const jobStopId = String(form.get('jobStopId') ?? '').trim() || null
