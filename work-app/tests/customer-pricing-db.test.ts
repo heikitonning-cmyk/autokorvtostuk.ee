@@ -14,10 +14,13 @@ test('customer pricing persists with the paid day without changing wage calculat
       add column operator_does_work boolean not null default false,add column operator_work_surcharge numeric,
       add column operator_work_hourly_rate numeric,add column manual_adjustment numeric not null default 0;`)
   await db.exec(readFileSync(new URL('../supabase/migrations/20261116142342_object_customer_pricing.sql',import.meta.url),'utf8'))
+  for(const migration of ['20261119062940_job_invoice_tracking.sql','20261119100742_invoice_payer_name.sql','20261119101331_job_payer_to_invoice.sql']) {
+    await db.exec(readFileSync(new URL('../supabase/migrations/'+migration,import.meta.url),'utf8'))
+  }
   await login(manager)
   const date='2026-11-16',id=randomUUID(),p=defaultCustomerPricing({hourlyRate:45,minimumOrder:90,driveHourlyRate:45,kmRate:1,helperHourlyRate:35,operatorWorkHourlyRate:15})
   const day={start_minute:480,end_minute:900,break_minutes:0,next_day:false}
-  const job={id,address:'Example 1',planned_time:'09:30',planned_end_time:'10:40',driver_employee_id:a,customer_pricing:p}
+  const job={id,payer_name:'Maksja OÜ',address:'Example 1',planned_time:'09:30',planned_end_time:'10:40',driver_employee_id:a,customer_pricing:p}
   const expected=async()=>({revision:(await db.query<any>('select revision from public.work_days where work_date=$1',[date])).rows[0]?.revision??0,
     jobs:(await db.query('select id,updated_at::text updated_at from public.jobs where planned_date=$1 order by id',[date])).rows,
     entries:(await db.query('select id,updated_at::text updated_at from public.payroll_entries where work_date=$1 order by id',[date])).rows})
@@ -27,6 +30,7 @@ test('customer pricing persists with the paid day without changing wage calculat
   const first=await expected(),request=randomUUID()
   await t.test('minute-based calculation, minimum and paid day remain separate',async()=>{
     await save(first,job,request)
+    assert.equal((await getJob()).payer_name,'Maksja OÜ')
     assert.equal(Number((await getJob()).estimated_total),90)
     assert.deepEqual(await wage(),[{paid_minutes:420,wage_cents:8400}])
   })
@@ -58,8 +62,27 @@ test('customer pricing persists with the paid day without changing wage calculat
     const ex=await expected();await save(ex,{...job,customer_pricing:{...p,agreed_total:10000}})
     await assert.rejects(save(ex),{code:'P0001'})
   })
+  await t.test('job payer reaches draft invoices and keeps invoice edits independent',async()=>{
+    await db.query("update public.jobs set status='completed' where id=$1",[id])
+    const invoice=async()=>(await db.query<any>('select * from public.job_invoices where job_id=$1',[id])).rows[0]
+    assert.equal((await invoice()).payer_name,'Maksja OÜ')
+    const wageBefore=await wage()
+    await save(await expected(),{...job,payer_name:'Uus Maksja OÜ'})
+    assert.equal((await invoice()).payer_name,'Uus Maksja OÜ')
+    await db.query("update public.job_invoices set payer_name='Arvel eraldi' where job_id=$1",[id])
+    await save(await expected(),{...job,payer_name:'Kolmas Maksja OÜ'})
+    assert.equal((await invoice()).payer_name,'Arvel eraldi')
+    assert.deepEqual(await wage(),wageBefore)
+    const {payer_name,...oldClient}=job
+    await save(await expected(),oldClient)
+    assert.equal((await getJob()).payer_name,'Kolmas Maksja OÜ')
+    const before=await getJob(),ex=await expected()
+    await assert.rejects(save(ex,{...job,payer_name:'x'.repeat(201)}),{code:'23514'})
+    assert.deepEqual(await getJob(),before)
+  })
   await t.test('operator and anonymous cannot write prices or call the paid-day save',async()=>{
     const ex=await expected();await db.query('update public.jobs set operator_id=$1 where id=$2',[operator,id]);await login(operator)
+    await assert.rejects(db.query('update public.jobs set payer_name=$1 where id=$2',['Forbidden',id]),{code:'42501'})
     await assert.rejects(save(ex),{code:'42501'})
     await assert.rejects(db.query('update public.jobs set customer_pricing=$1 where id=$2',[JSON.stringify(p),id]),{code:'42501'})
     await assert.rejects(db.query('update public.jobs set estimated_total=1 where id=$1',[id]),{code:'42501'})

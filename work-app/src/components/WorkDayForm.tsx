@@ -9,7 +9,7 @@ import { calculateTime, euros, hours, parseRate, totals, wageCents, type ActionS
 import { visibleDispatchSites, type DispatchEmployee, type DispatchSite } from '@/lib/simple-dispatch'
 import { applySharedTime, dayDefaults, dayExpected, initialWorkers, timePayload, type DayData, type TimeDraft, type WorkerDraft } from '@/lib/work-days'
 
-type JobDraft={id:string;address:string;planned_time:string;planned_end_time:string;contact_phone:string;description:string;driver_employee_id:string;site_id:string;customer_pricing:CustomerPricing}
+type JobDraft={payer_name:string;id:string;address:string;planned_time:string;planned_end_time:string;contact_phone:string;description:string;driver_employee_id:string;site_id:string;customer_pricing:CustomerPricing}
 function TimeInputs({value,onChange,prefix}:{value:TimeDraft;onChange:(value:TimeDraft)=>void;prefix:string}) {
   return <><div className="form-grid two"><label>{prefix} algus<input type="time" required value={value.start} onChange={e=>onChange({...value,start:e.target.value})}/></label><label>{prefix} lõpp<input type="time" required value={value.end} onChange={e=>onChange({...value,end:e.target.value})}/></label></div>
     <details><summary>Paus ja öötöö{Number(value.pause)>0?` · ${value.pause} min`:''}{value.overnight?' · järgmine päev':''}</summary><div className="form-grid two top-gap"><label>Tasustamata paus, min<input type="number" min={0} max={1439} value={value.pause} onChange={e=>onChange({...value,pause:e.target.value})}/></label><label className="check-row"><input type="checkbox" checked={value.overnight} onChange={e=>onChange({...value,overnight:e.target.checked})}/> Lõpp järgmisel päeval</label></div></details></>
@@ -22,8 +22,8 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
   const [date,setDate]=useState(data.date)
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
   const [shared,setShared]=useState(()=>dayDefaults(data)),[workers,setWorkers]=useState(()=>initialWorkers(data))
-  const blank=(id:string):JobDraft=>({id,address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
-  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
+  const blank=(id:string):JobDraft=>({id,payer_name:'',address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
+  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,payer_name:j.payer_name??'',address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
   const [localError,setLocalError]=useState('')
   const [draftRequest]=useState(requestId)
   const [expected]=useState(()=>dayExpected(data))
@@ -58,6 +58,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
       <section className="stack"><div className="day-team-heading"><div><h2>Objektid <span className="count">{jobs.length}</span></h2><p className="muted">Tööajad tellijale. Need ei lisa palgale tunde teist korda.</p></div><button type="button" className="button secondary" onClick={()=>setJobs(list=>[...list,blank(crypto.randomUUID())])}>+ Lisa objekt</button></div>
         {jobs.map((j,index)=><article className="form-card stack day-object" key={j.id} id={`job-${j.id}`}><div className="day-team-heading"><h3>Objekt {index+1}</h3>{!data.jobs.some(old=>old.id===j.id)&&<button type="button" className="text-button" onClick={()=>setJobs(list=>list.filter(x=>x.id!==j.id))}>Eemalda</button>}</div>
           <label>Aadress<input required maxLength={500} value={j.address} placeholder="Tänav, maja, linn" onChange={e=>updateJob(j.id,{address:e.target.value,site_id:''})}/></label>
+          <label>Arve saaja / maksja (vabatahtlik)<input maxLength={200} value={j.payer_name} placeholder="Ettevõtte või inimese nimi" onChange={e=>updateJob(j.id,{payer_name:e.target.value})}/></label>
           <SavedAddress sites={sites} onChoose={s=>updateJob(j.id,{address:s.address||s.name,site_id:s.id})}/>
           <div className="form-grid two"><label>Tellijale algus<input type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label><label>Tellijale lõpp<input type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label></div>
           <div className="form-grid two"><label>Tellija telefon<input type="tel" maxLength={50} value={j.contact_phone} onChange={e=>updateJob(j.id,{contact_phone:e.target.value})}/></label><label>Juht<select value={j.driver_employee_id} onChange={e=>{
