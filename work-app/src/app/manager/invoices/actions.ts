@@ -36,9 +36,11 @@ export async function saveInvoice(_previous:InvoiceActionState,form:FormData):Pr
     const date=(name:string)=>{const value=String(form.get(name)??'');if(value&&!validDate(value)) throw new Error('Kontrolli kuupäevi.');return value||null}
     const amountOverride=form.get('amountOverride')==='true'
     const amount=amountOverride?parseInvoiceAmount(String(form.get('amount')??'')):null
+    const payerName=String(form.get('payerName')??'').trim()
+    if(payerName.length>200) return {error:'Maksja nimi võib olla kuni 200 märki.'}
     const db=await createClient()
-    const {data,error}=await db.rpc('save_job_invoice',{p_job_id:jobId,p_version:version,p_status:status,
-      p_amount_cents:amount,p_amount_override:amountOverride,p_invoice_number:String(form.get('number')??''),
+    const {data,error}=await db.rpc('save_job_invoice_with_payer',{p_job_id:jobId,p_version:version,p_status:status,
+      p_payer_name:payerName,p_amount_cents:amount,p_amount_override:amountOverride,p_invoice_number:String(form.get('number')??''),
       p_issued_on:status==='draft'?null:date('issuedOn'),p_due_on:status==='draft'?null:date('dueOn'),p_paid_on:status==='paid'?date('paidOn'):null})
     if(error) return {error:error.code==='P0001'?error.message:'Kontrolli summat ja kuupäevi. Maksetähtaeg ja makse ei saa olla enne arve esitamist.'}
     refresh(jobId)

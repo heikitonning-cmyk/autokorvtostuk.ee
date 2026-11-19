@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {addCalendarDays,dayDifference,invoiceBadge,dueLabel,invoiceTotals,invoiceMatches,parseInvoiceAmount,type InvoiceWithJob} from './invoices.ts'
+import {addCalendarDays,dayDifference,invoiceBadge,dueLabel,invoiceTotals,invoiceMatches,parseInvoiceAmount,invoiceCustomer,type InvoiceWithJob} from './invoices.ts'
 const sample:InvoiceWithJob={job_id:'job',status:'draft',amount_cents:9000,amount_override:false,invoice_number:null,issued_on:null,due_on:null,paid_on:null,version:1,updated_at:'',updated_by:null,job:{id:'job',address:'Vaadi tee 9',object_name:null,planned_date:'2026-11-18',estimated_total:90,customer:{name:'Test tellija'}}}
 test('seven calendar days across month, year and daylight savings boundaries',()=>{
  for(const [from,to] of [['2026-11-19','2026-11-26'],['2026-12-28','2027-01-04'],['2026-03-27','2026-04-03'],['2026-10-23','2026-10-30']]){assert.equal(addCalendarDays(from,7),to);assert.equal(dayDifference(from,to),7)}
@@ -30,4 +30,12 @@ test('invoice amount uses exact cents and rejects ambiguous or invalid input',()
 test('website booking customer uses the existing snake_case fields',()=>{
  const i={...sample,job:{...sample.job!,customer:null,website_booking_details:{customer_name:'Korteriühistu test',contact_name:'Kontakt'}}}
  assert.equal(invoiceMatches(i,'Korteriühistu test'),true)
+})
+
+test('payer name is displayed and searchable independently of job address and customer',()=>{
+ const i={...sample,payer_name:'Teine Maksja OÜ'}
+ assert.equal(invoiceCustomer(i),'Teine Maksja OÜ')
+ for(const q of ['teine maksja','Vaadi','Test tellija'])assert.equal(invoiceMatches(i,q),true)
+ assert.equal(invoiceCustomer({...i,payer_name:'  '}),'Test tellija')
+ assert.equal(sample.job?.address,'Vaadi tee 9')
 })
