@@ -56,7 +56,7 @@ test('invoice tracking lifecycle, independence, history, retention and access',a
  })
  await t.test('records and their source job cannot be deleted by a manager',async()=>{
    await assert.rejects(db.query('delete from public.job_invoices where job_id=$1',[job]),{code:'42501'})
-   await assert.rejects(db.query('delete from public.jobs where id=$1',[job]),{code:'23503'})
+   await assert.rejects(db.query('delete from public.jobs where id=$1',[job]),{code:'23001'})
  })
  await t.test('operator and anonymous cannot read or modify tracking',async()=>{
    await login(operator)
