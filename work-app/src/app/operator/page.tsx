@@ -18,12 +18,12 @@ function longDate(date: string) {
 
 function PlanJobCard({ job }: { job: any }) {
   return <div className="job-card">
-    <div className="job-card-top"><strong>{operatorJobTime(job)}</strong><StatusBadge status={job.status as JobStatus} /></div>
+    <Link href={`/operator/jobs/${job.id}`} className="stack" style={{color:"inherit",textDecoration:"none"}} aria-label={`Ava töö: ${job.address || "Aadress määramata"}`}><div className="job-card-top"><strong>{operatorJobTime(job)}</strong><StatusBadge status={job.status as JobStatus} /></div>
     <div className="job-address"><strong>{job.address || 'Aadress määramata'}</strong></div>
     <p>Juht: <strong>{job.driver_name || (!job.dispatch_managed && job.operator?.name) || 'määramata'}</strong></p>
-    {job.description && <p className="simple-job-description">{job.description}</p>}
+    {job.description && <p className="simple-job-description">{job.description}</p>}</Link>
     <div className="stack top-gap"><JobContactActions navigationUrl={job.address ? wazeUrl(job.address) : null} phoneUrl={jobPhoneHref(job)} />
-      <Link href={`/operator/jobs/${job.id}`}>Töö andmed</Link>
+      <Link className="button primary wide" href={`/operator/jobs/${job.id}#photos`}>Ava töö ja lisa fotod</Link>
     </div>
   </div>
 }
