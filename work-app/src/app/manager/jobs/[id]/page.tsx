@@ -8,7 +8,11 @@ import { getDispatchReferences } from '@/lib/queries'
 import { clock, euros, hours } from '@/lib/payroll'
 import { SimpleJobDetails } from '@/components/SimpleJobDetails'
 import { DeleteJobForm } from '@/components/DeleteJobForm'
-import { isActiveJob } from '@/lib/status'
+import { InvoiceBadge } from '@/components/InvoiceBadge'
+import { StartInvoiceForm } from '@/components/StartInvoiceForm'
+import { getInvoice } from '@/lib/invoice-queries'
+import { tallinnDate } from '@/lib/payroll'
+import { isActiveJob, isCompletedJob } from '@/lib/status'
 import { minuteTime } from '@/lib/simple-dispatch'
 import { cancelJob, deleteJob } from '../actions'
 
@@ -18,6 +22,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   const query = await searchParams
   let job: any
   try { job = await getJobDetail(id) } catch { notFound() }
+  const invoice=await getInvoice(id)
   const entry = job.work_day_id ? null : await getJobPayrollEntry(id)
   const dayData=job.work_day_id?await getWorkDay(job.planned_date):null
   const refs=dayData?await getDispatchReferences():null
@@ -27,6 +32,9 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     {query.error && <div role="alert" className="alert danger">Toiming ebaõnnestus. Proovi uuesti.</div>}
     <SimpleJobDetails job={job} />
     <CustomerPriceSummary job={job}/>
+    <section className="detail-card stack"><h2>Arve</h2>
+      {invoice?<><InvoiceBadge invoice={invoice} today={tallinnDate()}/><Link className="button secondary wide" href={`/manager/invoices/${id}`}>Ava arve · esitatud / makstud</Link></>:(isActiveJob(job)||isCompletedJob(job))?<><p className="muted">{isCompletedJob(job)?'Selle varasema töö arvete jälgimine pole aktiveeritud.':'Lõpetatud töö ilmub automaatselt jaotusesse „Arve tegemata”.'}</p><StartInvoiceForm jobId={id} completed={isCompletedJob(job)}/></>:<p className="muted">Tühistatud tööle arvet automaatselt ei lisata.</p>}
+    </section>
     <Link className="button primary wide" href={`/manager/jobs/${id}/edit`}>Muuda tööd</Link>
     <section className="detail-card stack"><h2>{dayData?'Päeva meeskond ja palgaarvestus':'Juhi palgaarvestus'}</h2>
       {dayData ? <><p>{dayData.day?`${clock(dayData.day.start_minute)}–${clock(dayData.day.end_minute)}`:''} · {dayData.jobs.length} objekti</p>{dayData.entries.map(e=><div className="day-pay-row" key={e.id}><Link href={`/manager/time/workers/${e.employee_id}`}>{refs?.employees.find(w=>w.id===e.employee_id)?.name??'Tööline'}</Link><span>{hours(e.paid_minutes??0)}</span><strong>{euros(e.wage_cents??0)}</strong></div>)}<Link href={`/manager/time/days/${job.planned_date}`}>Muuda päeva aega ja meeskonda →</Link></> : entry ? <><p>{entry.work_date} · {minuteTime(entry.start_minute)}–{minuteTime(entry.end_minute)}{entry.next_day ? ' (+1 päev)' : ''} · paus {entry.break_minutes} min</p>

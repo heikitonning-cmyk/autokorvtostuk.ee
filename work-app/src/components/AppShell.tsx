@@ -17,10 +17,11 @@ export function AppShell({ user, view, children }: { user: AppUser; view: AppVie
         <div className="user-chip"><span>{user.name}</span><a href="/logout">Välju</a></div>
       </header>
       <main className="app-main">{children}</main>
-      <nav className="bottom-nav" aria-label="Rakenduse navigatsioon">
+      <nav className={`bottom-nav${managerView ? ' manager-nav' : ''}`} aria-label="Rakenduse navigatsioon">
         {managerView ? <>
           <Link href="/manager">Avaleht</Link>
           <Link href="/manager/time">Tunnid</Link>
+          <Link href="/manager/invoices">Arved</Link>
           <Link href="/manager/customers">Kliendid</Link>
           <Link href="/manager/users">Kasutajad</Link>
           <Link href="/manager/settings">Seaded</Link>
