@@ -128,3 +128,6 @@ a.metric-card:focus-visible,a.attention-card:focus-visible,a.capacity-chip:focus
 .invoice-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.invoice-totals span,.invoice-totals strong,.invoice-totals small{display:block}.invoice-totals span{font-size:13px;color:var(--muted)}.invoice-totals strong{font-size:26px;margin-top:8px}.invoice-overdue-total strong,.invoice-late{color:var(--danger)}
 .invoice-list-card{display:block;overflow-wrap:anywhere}.invoice-list-card .day-team-heading{flex-wrap:wrap;gap:10px}.invoice-dates{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;margin-top:12px}.invoice-history-row{border-bottom:1px solid var(--line);padding:12px 0}.invoice-history-row strong,.invoice-history-row small{display:block}
 @media(max-width:600px){.invoice-totals{grid-template-columns:1fr}.invoice-totals .detail-card{padding:14px}.invoice-totals strong{font-size:24px}}
+
+.appointment-driver-times{display:grid;grid-template-columns:1fr 1fr;gap:20px}.appointment-driver-times>div{min-width:0}.appointment-driver-times small{display:block}.appointment-driver-times h3{font-size:15px;margin:0}.appointment-driver-times input{min-width:0}
+@media(max-width:700px){.appointment-driver-times{grid-template-columns:1fr;gap:16px}}

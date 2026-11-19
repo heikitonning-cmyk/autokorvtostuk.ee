@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import {driverWorkers,suggestedDriverTime} from '@/lib/driver-time'
 import type { PriceSettings } from '@/lib/domain'
 import { CustomerPriceFields } from '@/components/CustomerPriceFields'
 import { customerPrice, defaultCustomerPricing, initialCustomerPricing, type CustomerPricing } from '@/lib/customer-pricing'
@@ -21,14 +22,21 @@ function SavedAddress({sites,onChoose}:{sites:DispatchSite[];onChoose:(site:Disp
 export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings}) {
   const [date,setDate]=useState(data.date)
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
-  const [shared,setShared]=useState(()=>dayDefaults(data)),[workers,setWorkers]=useState(()=>initialWorkers(data))
+  const [shared,setShared]=useState(()=>dayDefaults(data)),[workerDrafts,setWorkers]=useState(()=>initialWorkers(data))
   const blank=(id:string):JobDraft=>({id,payer_name:'',address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
   const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,payer_name:j.payer_name??'',address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
+  const [manualDrivers,setManualDrivers]=useState<Record<string,boolean>>({})
+  const savedDriverIds=data.entries.map(e=>e.employee_id)
+  const workers=driverWorkers(workerDrafts,jobs,manualDrivers,savedDriverIds)
+  const setDriverTime=(id:string,patch:Partial<WorkerDraft>)=>{
+    setManualDrivers(m=>({...m,[id]:true}))
+    setWorkers(list=>list.map(w=>w.id===id?{...workers.find(current=>current.id===id)!,...patch,override:true}:w))
+  }
   const [localError,setLocalError]=useState('')
   const [draftRequest]=useState(requestId)
   const [expected]=useState(()=>dayExpected(data))
   const updateJob=(id:string,patch:Partial<JobDraft>)=>setJobs(list=>list.map(j=>j.id===id?{...j,...patch}:j))
-  const updateWorker=(id:string,patch:Partial<WorkerDraft>)=>setWorkers(list=>list.map(w=>w.id===id?{...w,...patch}:w))
+  const updateWorker=(id:string,patch:Partial<WorkerDraft>)=>{setManualDrivers(m=>({...m,[id]:true}));setWorkers(list=>list.map(w=>w.id===id?{...workers.find(current=>current.id===id)!,...patch}:w))}
   const workerName=(w:WorkerDraft)=>w.is_new?w.name||'Uus tööline':employees.find(e=>e.id===w.id)?.name??'Tööline'
   const rate=(w:WorkerDraft)=>w.is_new?parseRate(w.rate??''):data.entries.find(e=>e.employee_id===w.id)?.hourly_rate_cents??employees.find(e=>e.id===w.id)?.hourly_rate_cents??0
   let error='',preview:{id:string;name:string;minutes:number;cents:number}[]=[]
@@ -46,21 +54,39 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
     } catch(err){setLocalError((err as Error).message)}
   }} className="stack-lg">
     <fieldset disabled={pending} className="payroll-fields stack-lg">
-      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Päeva algus ja lõpp määravad juhi ning teiste tööliste palgatunnid. Päeva tööaja muutmine rakendub kõigile valitud töölistele. Vajadusel määra seejärel inimesele eraldi aeg. Tellija tööaeg sisesta objekti juurde.</p></div>{!newJobId&&<label>Kuupäev<input type="date" required min="2000-01-01" max="2099-12-31" value={date} onChange={e=>setDate(e.target.value)}/></label>}{date!==data.date&&<p className="muted">Salvestamisel liiguvad kõik selle päeva objektid ja palgatunnid valitud kuupäevale.</p>}<TimeInputs prefix="Päeva" value={shared} onChange={value=>{setShared(value);setWorkers(list=>applySharedTime(list,value))}}/>
+      <section className="form-card stack"><div><h2>Päeva tööaeg</h2><p className="muted">Päeva algus ja lõpp määravad juhi ning teiste tööliste palgatunnid. Päeva tööaja muutmine rakendub kõigile valitud töölistele. Vajadusel määra seejärel inimesele eraldi aeg. Tellija tööaeg sisesta objekti juurde.</p></div>{!newJobId&&<label>Kuupäev<input type="date" required min="2000-01-01" max="2099-12-31" value={date} onChange={e=>setDate(e.target.value)}/></label>}{date!==data.date&&<p className="muted">Salvestamisel liiguvad kõik selle päeva objektid ja palgatunnid valitud kuupäevale.</p>}<TimeInputs prefix="Päeva" value={shared} onChange={value=>{setShared(value);setManualDrivers(Object.fromEntries(workers.map(w=>[w.id,true])));setWorkers(list=>applySharedTime(list,value))}}/>
         <div className="day-team-heading"><h3>Meeskond</h3><button type="button" className="text-button" onClick={()=>setWorkers(list=>[...list,{id:crypto.randomUUID(),...shared,override:false,is_new:true,name:'',rate:''}])}>+ Uus tööline</button></div>
         <div className="day-worker-choices">{employees.filter(e=>e.active||workers.some(w=>w.id===e.id)).map(e=><label className={`day-worker-chip ${workers.some(w=>w.id===e.id)?'selected':''}`} key={e.id}><input type="checkbox" checked={workers.some(w=>w.id===e.id)} onChange={event=>{
           if(event.target.checked) setWorkers(list=>[...list,{id:e.id,...shared,override:false}]);else {setWorkers(list=>list.filter(w=>w.id!==e.id));setJobs(list=>list.map(j=>j.driver_employee_id===e.id?{...j,driver_employee_id:''}:j))}
         }}/>{e.name}</label>)}</div>
         {workers.filter(w=>w.is_new).map(w=><div className="day-new-worker stack" key={w.id}><div className="form-grid two"><label>Uue töölise nimi<input required maxLength={120} value={w.name} onChange={e=>updateWorker(w.id,{name:e.target.value})}/></label><label>Tunnihind, €/h<input required inputMode="decimal" value={w.rate} onChange={e=>updateWorker(w.id,{rate:e.target.value})}/></label></div><button type="button" className="text-button" onClick={()=>{setWorkers(list=>list.filter(x=>x.id!==w.id));setJobs(list=>list.map(j=>j.driver_employee_id===w.id?{...j,driver_employee_id:''}:j))}}>Eemalda uus tööline</button></div>)}
-        {workers.some(w=>w.override)&&<div className="alert"><p>Eraldi tööaeg: {workers.filter(w=>w.override).map(w=>`${workerName(w)} ${w.start}–${w.end}`).join(', ')}.</p><button type="button" className="button secondary" onClick={()=>setWorkers(list=>applySharedTime(list,shared))}>Kasuta kõigile päeva tööaega</button></div>}
-        {!!workers.length&&<details className="day-exceptions" open={workers.some(w=>w.override)}><summary>Erinev tööaeg inimese kaupa{workers.some(w=>w.override)?` · ${workers.filter(w=>w.override).length} erandit`:''}</summary><div className="stack top-gap">{workers.map(w=><div className="stack" key={w.id}><label className="check-row"><input type="checkbox" checked={w.override} onChange={e=>updateWorker(w.id,{...shared,override:e.target.checked})}/>{workerName(w)} · eraldi aeg / väljasõit</label>{w.override&&<TimeInputs prefix={workerName(w)} value={w} onChange={value=>updateWorker(w.id,value)}/>}</div>)}</div></details>}
+        {workers.some(w=>w.override)&&<div className="alert"><p>Eraldi tööaeg: {workers.filter(w=>w.override).map(w=>`${workerName(w)} ${w.start}–${w.end}`).join(', ')}.</p><button type="button" className="button secondary" onClick={()=>{setManualDrivers(Object.fromEntries(workers.map(w=>[w.id,true])));setWorkers(list=>applySharedTime(list,shared))}}>Kasuta kõigile päeva tööaega</button></div>}
+        {!!workers.length&&<details className="day-exceptions"><summary>Erinev tööaeg inimese kaupa{workers.some(w=>w.override)?` · ${workers.filter(w=>w.override).length} erandit`:''}</summary><div className="stack top-gap">{workers.map(w=><div className="stack" key={w.id}><label className="check-row"><input type="checkbox" checked={w.override} onChange={e=>updateWorker(w.id,{...shared,override:e.target.checked})}/>{workerName(w)} · eraldi aeg / väljasõit</label>{w.override&&<TimeInputs prefix={workerName(w)} value={w} onChange={value=>updateWorker(w.id,value)}/>}</div>)}</div></details>}
       </section>
       <section className="stack"><div className="day-team-heading"><div><h2>Objektid <span className="count">{jobs.length}</span></h2><p className="muted">Tööajad tellijale. Need ei lisa palgale tunde teist korda.</p></div><button type="button" className="button secondary" onClick={()=>setJobs(list=>[...list,blank(crypto.randomUUID())])}>+ Lisa objekt</button></div>
         {jobs.map((j,index)=><article className="form-card stack day-object" key={j.id} id={`job-${j.id}`}><div className="day-team-heading"><h3>Objekt {index+1}</h3>{!data.jobs.some(old=>old.id===j.id)&&<button type="button" className="text-button" onClick={()=>setJobs(list=>list.filter(x=>x.id!==j.id))}>Eemalda</button>}</div>
           <label>Aadress<input required maxLength={500} value={j.address} placeholder="Tänav, maja, linn" onChange={e=>updateJob(j.id,{address:e.target.value,site_id:''})}/></label>
           <label>Arve saaja / maksja (vabatahtlik)<input maxLength={200} value={j.payer_name} placeholder="Ettevõtte või inimese nimi" onChange={e=>updateJob(j.id,{payer_name:e.target.value})}/></label>
           <SavedAddress sites={sites} onChoose={s=>updateJob(j.id,{address:s.address||s.name,site_id:s.id})}/>
-          <div className="form-grid two"><label>Tellijale algus<input type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label><label>Tellijale lõpp<input type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label></div>
+          <div className="appointment-driver-times">
+            <div className="stack"><h3>Tellija tööaeg</h3><div className="form-grid two"><label>Tellijale algus<input type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label><label>Tellijale lõpp<input type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label></div></div>
+            <div className="stack"><h3>Juhi tööaeg · palgaarvestusse</h3>{(()=>{
+              const worker=workers.find(w=>w.id===j.driver_employee_id)
+              if(!worker)return <p className="muted">Vali allpool juht, et lisada tema tööaeg.</p>
+              const value=worker.override?worker:shared
+              const suggested=suggestedDriverTime(jobs,worker.id)
+              const manual=manualDrivers[worker.id]??savedDriverIds.includes(worker.id)
+              return <><div className="form-grid two">
+                <label>Juhi algus / väljasõit<input type="time" required value={value.start} onChange={e=>setDriverTime(worker.id,{...value,start:e.target.value})}/></label>
+                <label>Juhi lõpp<input type="time" required value={value.end} onChange={e=>setDriverTime(worker.id,{...value,end:e.target.value})}/></label>
+              </div>
+              <small className="muted">{manual?'Salvestatud või käsitsi täpsustatud juhi tööaeg.':'Vaikimisi 30 min enne tellija algust ja 30 min pärast lõppu.'}{value.overnight?' Lõpp järgmisel päeval.':''}</small>
+              {jobs.filter(x=>x.driver_employee_id===worker.id).length>1&&<small className="muted">Sama juhi kogu päeva aeg; muutus kajastub kõigil tema objektidel. Palk arvestatakse üks kord.</small>}
+              {suggested.time?<button type="button" className="text-button" onClick={()=>setManualDrivers(m=>({...m,[worker.id]:false}))}>Kasuta tellija aegu + sõit: {suggested.time.start}–{suggested.time.end}</button>:<small className="muted">{suggested.reason}</small>}
+              <details><summary>Paus ja öötöö{Number(value.pause)>0?` · ${value.pause} min`:''}</summary><div className="form-grid two top-gap"><label>Paus, min<input type="number" min={0} max={1439} value={value.pause} onChange={e=>setDriverTime(worker.id,{...value,pause:e.target.value})}/></label><label className="check-row"><input type="checkbox" checked={value.overnight} onChange={e=>setDriverTime(worker.id,{...value,overnight:e.target.checked})}/> Lõpp järgmisel päeval</label></div></details>
+              </>
+            })()}</div>
+          </div>
           <div className="form-grid two"><label>Tellija telefon<input type="tel" maxLength={50} value={j.contact_phone} onChange={e=>updateJob(j.id,{contact_phone:e.target.value})}/></label><label>Juht<select value={j.driver_employee_id} onChange={e=>{
             const id=e.target.value
             if(id) setWorkers(list=>list.some(w=>w.id===id)?list:[...list,{id,...shared,override:false}])
