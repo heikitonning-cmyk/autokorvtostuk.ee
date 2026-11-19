@@ -22,6 +22,7 @@ const siteSelect = 'id,customer_id,name,address,city,county,requires_lift,servic
 async function signJobPhotos(supabase: any, photos: any[]) {
   if (!photos?.length) return photos ?? []
   return Promise.all(photos.map(async (photo: any) => {
+    if (photo.dropbox_id) return { ...photo, signed_url: `/api/photos/${photo.id}` }
     const { data: signed } = await supabase.storage.from('job-photos').createSignedUrl(photo.storage_path, 3600)
     return { ...photo, signed_url: signed?.signedUrl ?? null }
   }))
