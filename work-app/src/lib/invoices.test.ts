@@ -26,3 +26,8 @@ test('invoice amount uses exact cents and rejects ambiguous or invalid input',()
  for(const [value,cents] of [['90',9000],['123,45',12345],['0.01',1],['0',0]] as const)assert.equal(parseInvoiceAmount(value),cents)
  for(const value of ['-1','1e3','12.345','','NaN','1,234.50'])assert.throws(()=>parseInvoiceAmount(value))
 })
+
+test('website booking customer uses the existing snake_case fields',()=>{
+ const i={...sample,job:{...sample.job!,customer:null,website_booking_details:{customer_name:'Korteriühistu test',contact_name:'Kontakt'}}}
+ assert.equal(invoiceMatches(i,'Korteriühistu test'),true)
+})

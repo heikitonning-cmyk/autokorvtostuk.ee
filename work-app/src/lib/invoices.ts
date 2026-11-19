@@ -4,7 +4,7 @@ export type TrackedInvoice={
   job_id:string;status:InvoiceState;amount_cents:number|null;amount_override:boolean;invoice_number:string|null
   issued_on:string|null;due_on:string|null;paid_on:string|null;version:number;updated_at:string;updated_by:string|null
 }
-export type InvoiceWithJob=TrackedInvoice&{job:{id:string;address:string|null;object_name:string|null;planned_date:string|null;estimated_total:number|null;customer:{name:string}|null;website_booking_details?:{name?:string;customerName?:string}|null}|null}
+export type InvoiceWithJob=TrackedInvoice&{job:{id:string;address:string|null;object_name:string|null;planned_date:string|null;estimated_total:number|null;customer:{name:string}|null;website_booking_details?:{name?:string;customerName?:string;customer_name?:string;contact_name?:string}|null}|null}
 export function addCalendarDays(date:string,days:number):string {
   if(!validDate(date)||!Number.isInteger(days)||days<0||days>3650) throw new Error('Kontrolli maksetähtaega.')
   const result=new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10)
@@ -25,7 +25,7 @@ export function dueLabel(due:string|null,today:string):string {
   return days<0?`Tähtaeg ületatud ${-days} päeva`:days===0?'Tähtaeg täna':`Tähtajani ${days} päeva`
 }
 export const invoiceDate=(date:string|null)=>date?date.split('-').reverse().join('.'):'—'
-export const invoiceCustomer=(invoice:InvoiceWithJob)=>invoice.job?.customer?.name||invoice.job?.website_booking_details?.customerName||invoice.job?.website_booking_details?.name||'Tellija määramata'
+export const invoiceCustomer=(invoice:InvoiceWithJob)=>invoice.job?.customer?.name||invoice.job?.website_booking_details?.customer_name||invoice.job?.website_booking_details?.contact_name||invoice.job?.website_booking_details?.customerName||invoice.job?.website_booking_details?.name||'Tellija määramata'
 export function invoiceTotals(invoices:TrackedInvoice[],today:string) {
   return invoices.reduce((s,i)=>{
     if(i.status==='draft'){s.draft+=Number(i.amount_cents??0);if(i.amount_cents===null)s.unknown++}
