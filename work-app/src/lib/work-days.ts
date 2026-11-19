@@ -2,7 +2,7 @@ import type { PricingJob } from './customer-pricing.ts'
 import { calculateTime, clock, type TimeEntry } from './payroll.ts'
 
 export type WorkDay = { id:string; work_date:string; start_minute:number; end_minute:number; break_minutes:number; next_day:boolean; revision:number }
-export type DayJob = PricingJob & { id:string; address:string|null; planned_date:string|null; planned_time:string|null; planned_end_time:string|null; contact_phone:string|null; description:string|null; driver_employee_id:string|null; site_id:string|null; updated_at:string; work_day_id?:string|null }
+export type DayJob = PricingJob & { payer_name?:string|null; id:string; address:string|null; planned_date:string|null; planned_time:string|null; planned_end_time:string|null; contact_phone:string|null; description:string|null; driver_employee_id:string|null; site_id:string|null; updated_at:string; work_day_id?:string|null }
 export type DayEntry = TimeEntry & { work_day_id:string|null; day_time_override:boolean; job_id:string|null }
 export type DayData = { date:string; day:WorkDay|null; jobs:DayJob[]; entries:DayEntry[] }
 export type TimeDraft = { start:string; end:string; pause:string; overnight:boolean }
