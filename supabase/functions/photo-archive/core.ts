@@ -13,7 +13,7 @@ export function archivePath(photo: {id:string;storage_path:string},job:{id:strin
  return '/Toode fotod/'+(job.planned_date||'Kuupaevata')+' '+address+' '+job.id+'/'+photo.id+'.'+suffix;
 }
 export function eligible(job:{planned_date?:string;completed_at?:string;actual_end?:string;status?:string;dispatch_managed?:boolean},today:string):boolean {
- if(job.status==='tuhistatud'||job.status==='toös'||job.status==='toos')return false;
+ if(job.status==='tuhistatud'||job.status==='toob'||job.status==='teel')return false;
  const date=(job.completed_at||job.actual_end||job.planned_date||'').slice(0,10);
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return false;
  const done=job.dispatch_managed||['completed','tehtud','vajab_jareltegevust'].includes(job.status||'');

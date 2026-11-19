@@ -15,6 +15,8 @@ test('only jobs older than 30 days, completed or day-managed, are automatic cand
  assert.equal(eligible({...base,planned_date:'2026-10-20'},'2026-11-19'),false)
  assert.equal(eligible({...base,planned_date:'2026-11-20'},'2026-11-19'),false)
  assert.equal(eligible({...base,status:'tuhistatud'},'2026-11-19'),false)
+ assert.equal(eligible({...base,status:'toob'},'2026-11-19'),false)
+ assert.equal(eligible({...base,status:'teel'},'2026-11-19'),false)
  assert.equal(eligible({...base,dispatch_managed:false},'2026-11-19'),false)
  assert.equal(eligible({...base,completed_at:'2026-11-18T12:00:00Z'},'2026-11-19'),false)
  assert.equal(eligible({...base,status:'completed',dispatch_managed:false},'2026-11-19'),true)
