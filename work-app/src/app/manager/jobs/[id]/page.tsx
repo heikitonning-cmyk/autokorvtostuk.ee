@@ -31,7 +31,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     <Link className="back-link" href="/manager">← Tööde juurde</Link>
     {query.saved && <div className="alert success">Töö salvestatud.</div>}
     {query.error && <div role="alert" className="alert danger">Toiming ebaõnnestus. Proovi uuesti.</div>}
-    <SimpleJobDetails job={job} /><JobPhotos jobId={id} photos={job.job_photos??[]} />
+    <SimpleJobDetails job={job} /><JobPhotos manager jobId={id} photos={job.job_photos??[]} />
     <CustomerPriceSummary job={job}/>
     <section className="detail-card stack"><h2>Arve</h2>
       {invoice?<><InvoiceBadge invoice={invoice} today={tallinnDate()}/><Link className="button secondary wide" href={`/manager/invoices/${id}`}>Ava arve · esitatud / makstud</Link></>:(isActiveJob(job)||isCompletedJob(job))?<><p className="muted">{isCompletedJob(job)?'Selle varasema töö arvete jälgimine pole aktiveeritud.':'Lõpetatud töö ilmub automaatselt jaotusesse „Arve tegemata”.'}</p><StartInvoiceForm jobId={id} completed={isCompletedJob(job)}/></>:<p className="muted">Tühistatud tööle arvet automaatselt ei lisata.</p>}
