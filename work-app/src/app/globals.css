@@ -111,3 +111,20 @@ a.metric-card:focus-visible,a.attention-card:focus-visible,a.capacity-chip:focus
 @media(max-width:480px){.day-page .form-card,.day-page .detail-card{padding:15px}.day-page .form-grid.two{gap:10px}.day-list-card{align-items:flex-start;flex-direction:column}.day-pay-row{gap:8px}.day-team-heading>.button{padding:10px 12px}.day-object-link{flex-wrap:wrap}.day-page input{padding:11px 9px}.workers-grid{grid-template-columns:1fr}}
 
 .customer-price{padding:14px;border:1px solid #cde5d8;border-radius:13px;background:#f2faf5}.customer-price h3{margin:0}.customer-price>.day-team-heading{flex-wrap:wrap}.customer-price-total{font-size:23px;color:#076747;white-space:nowrap}.customer-charge-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}.customer-charge-row>strong{white-space:nowrap}.customer-charge-row .check-row{flex-wrap:wrap;font-size:14px;gap:7px}.customer-charge-row small{color:#667085;font-weight:400}.helper-count{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.helper-count input{width:68px;min-height:40px;padding:8px}.customer-agreement{padding:9px 11px;border-radius:8px;background:#fff6d9;font-size:13px}.customer-price details{border-top:1px solid #d9e9df;padding-top:5px}.customer-price .error-text{font-size:13px}
+
+/* Invoice tracking stays compact on phone and desktop. */
+.invoice-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700}
+.invoice-draft{background:#f2f4f7;color:#475467}.invoice-unpaid{background:#fff3c4;color:#854d0e}.invoice-overdue{background:#fef3f2;color:#b42318}.invoice-paid{background:#ecfdf3;color:#067647}
+.invoice-checks{display:flex;flex-wrap:wrap;gap:18px}.invoice-checks .check-row{min-height:44px}
+.invoice-form fieldset{border:0;padding:0;margin:0;min-width:0}.invoice-form input{min-width:0}
+.invoice-paid-note{padding:12px;background:#ecfdf3;border-radius:12px;color:#067647}
+.invoice-tabs{display:flex;flex-wrap:wrap;gap:8px}.invoice-tabs button{min-height:44px;border:1px solid #d0d5dd;border-radius:12px;padding:10px 14px;background:white;font-weight:700}.invoice-tabs button.active{background:#111827;color:white}
+.invoice-row{display:block;padding:18px;background:white;border:1px solid var(--line);border-radius:16px}
+.invoice-row:hover{border-color:#98a2b3}.invoice-row-header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px}
+.invoice-row p{margin:8px 0}.invoice-row strong,.invoice-row p{overflow-wrap:anywhere}
+.invoice-history{display:grid;gap:12px}.invoice-history article{border-bottom:1px solid var(--line);padding:12px 0}
+@media(max-width:600px){.manager-nav{display:grid;grid-template-columns:repeat(3,1fr);height:auto;min-height:92px;gap:0;padding:4px 8px max(4px,env(safe-area-inset-bottom))}.manager-nav a{min-width:0;padding:8px 4px;min-height:40px}.app-shell:has(.manager-nav){padding-bottom:130px}.invoice-metrics{grid-template-columns:1fr}.invoice-form .form-grid.two{grid-template-columns:1fr}.invoice-row-header{align-items:flex-start}}
+
+.invoice-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.invoice-totals span,.invoice-totals strong,.invoice-totals small{display:block}.invoice-totals span{font-size:13px;color:var(--muted)}.invoice-totals strong{font-size:26px;margin-top:8px}.invoice-overdue-total strong,.invoice-late{color:var(--danger)}
+.invoice-list-card{display:block;overflow-wrap:anywhere}.invoice-list-card .day-team-heading{flex-wrap:wrap;gap:10px}.invoice-dates{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;margin-top:12px}.invoice-history-row{border-bottom:1px solid var(--line);padding:12px 0}.invoice-history-row strong,.invoice-history-row small{display:block}
+@media(max-width:600px){.invoice-totals{grid-template-columns:1fr}.invoice-totals .detail-card{padding:14px}.invoice-totals strong{font-size:24px}}
