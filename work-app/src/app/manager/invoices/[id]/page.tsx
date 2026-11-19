@@ -20,13 +20,14 @@ export default async function InvoicePage({params}:{params:Promise<{id:string}>}
     <section className="detail-card stack"><h2>{invoiceCustomer({...invoice,job} as InvoiceWithJob)}</h2><p>{job.address||job.object_name||'Aadress määramata'}</p>
       <p>Töö kuupäev {invoiceDate(job.planned_date)} · Töö hind {job.estimated_total==null?'määramata':euros(Math.round(Number(job.estimated_total)*100))}</p>
       <Link href={`/manager/jobs/${id}`}>Ava seotud töö</Link>
-      <small className="muted">Töö ID: {id}</small>
+      <small className="muted" style={{display:'block',overflowWrap:'anywhere'}}>Töö ID: {id}</small>
     </section>
-    <section className="form-card"><InvoiceForm key={invoice.version} invoice={invoice} today={today}/></section>
+    <section className="form-card"><InvoiceForm key={invoice.version} invoice={invoice} today={today} defaultPayer={invoiceCustomer({...invoice,job} as InvoiceWithJob)==='Tellija määramata'?'':invoiceCustomer({...invoice,job} as InvoiceWithJob)}/></section>
     <details className="detail-card invoice-history"><summary>Muudatuste ajalugu ({history.length})</summary>
       <div className="stack top-gap">{history.map(event=><div key={event.id} className="invoice-history-row">
         <strong>{new Date(event.changed_at).toLocaleString('et-EE',{timeZone:'Europe/Tallinn'})} · {event.actor?.name??'Süsteem'}</strong>
         <p>{event.previous_data?'Muudetud':'Jälgimine aktiveeritud'} · {{draft:'Arve tegemata',unpaid:'Tasumata',paid:'Makstud'}[event.new_data.status as 'draft'|'unpaid'|'paid']} · {event.new_data.amount_cents==null?'Summa määramata':euros(Number(event.new_data.amount_cents))}</p>
+        {event.new_data.payer_name&&<p>Arve saaja / maksja: {event.new_data.payer_name}</p>}
         <small>Esitatud {invoiceDate(event.new_data.issued_on)} · tähtaeg {invoiceDate(event.new_data.due_on)} · makstud {invoiceDate(event.new_data.paid_on)}{event.new_data.invoice_number?` · nr ${event.new_data.invoice_number}`:''}</small>
       </div>)}</div>
     </details>

@@ -10,6 +10,7 @@ test('invoice tracking lifecycle, independence, history, retention and access',a
  await db.query("insert into public.jobs(id,status,estimated_total) values($1,'completed',90)",[legacy])
  await db.exec('reset role')
  await db.exec(readFileSync(new URL('../supabase/migrations/20261119062940_job_invoice_tracking.sql',import.meta.url),'utf8'))
+ await db.exec(readFileSync(new URL('../supabase/migrations/20261119100742_invoice_payer_name.sql',import.meta.url),'utf8'))
  await login(manager)
  const read=async(id=job)=>(await db.query<any>('select *,issued_on::text issued_on,due_on::text due_on,paid_on::text paid_on from public.job_invoices where job_id=$1',[id])).rows[0]
  const save=async(p:any={})=>{const i=await read();return (await db.query<any>('select public.save_job_invoice($1,$2,$3,$4,$5,$6,$7,$8,$9) as invoice',
@@ -53,6 +54,24 @@ test('invoice tracking lifecycle, independence, history, retention and access',a
    await assert.rejects(save({version:1,amount:13000}),{code:'P0001'})
    const i=await read();await save({version:1});assert.equal((await read()).version,i.version)
    await assert.rejects(save({due:'2026-11-18'}),{code:'23514'})
+ })
+ await t.test('payer is independent, audited, versioned and preserved by the old client',async()=>{
+   const before=(await db.query('select * from public.jobs where id=$1',[job])).rows
+   const i=await read()
+   const savePayer=(version:number,name:string)=>db.query<any>("select public.save_job_invoice_with_payer($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) as invoice",[job,version,i.status,i.amount_cents,i.amount_override,i.invoice_number,i.issued_on,i.due_on,null,name])
+   await savePayer(i.version,'  Teine Maksja OÜ  ')
+   await login(manager)
+   assert.equal((await read()).payer_name,'Teine Maksja OÜ')
+   await assert.rejects(savePayer(i.version,'Stale name'),{code:'P0001'})
+   await assert.rejects(savePayer((await read()).version,'x'.repeat(201)),{code:'23514'})
+   await save({number:'EK-124'})
+   assert.equal((await read()).payer_name,'Teine Maksja OÜ')
+   assert.deepEqual((await db.query('select * from public.jobs where id=$1',[job])).rows,before)
+   const history=(await db.query<any>('select new_data,changed_by from public.job_invoice_history where job_id=$1 order by id desc',[job])).rows[0]
+   assert.equal(history.new_data.payer_name,'Teine Maksja OÜ');assert.equal(history.changed_by,manager)
+   await login(operator)
+   await assert.rejects(savePayer((await read())?.version??1,'Forbidden'),{code:'42501'})
+   await login(manager)
  })
  await t.test('records and their source job cannot be deleted by a manager',async()=>{
    await assert.rejects(db.query('delete from public.job_invoices where job_id=$1',[job]),{code:'42501'})

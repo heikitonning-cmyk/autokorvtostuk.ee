@@ -3,7 +3,7 @@ import { startTransition,useActionState,useEffect,useRef,useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveInvoice,type InvoiceActionState } from '@/app/manager/invoices/actions'
 import { addCalendarDays,dayDifference,type InvoiceState,type TrackedInvoice } from '@/lib/invoices'
-export function InvoiceForm({invoice,today}:{invoice:TrackedInvoice;today:string}) {
+export function InvoiceForm({invoice,today,defaultPayer=''}:{invoice:TrackedInvoice;today:string;defaultPayer?:string}) {
   const [state,action,pending]=useActionState(saveInvoice,{} as InvoiceActionState)
   const router=useRouter(),ref=useRef<HTMLFormElement>(null)
   const [issued,setIssued]=useState(invoice.issued_on??today)
@@ -37,6 +37,7 @@ export function InvoiceForm({invoice,today}:{invoice:TrackedInvoice;today:string
       </div>
       <p className="muted">Linnukese muutmine salvestab kohe. Arvet ega teadet kliendile ei saadeta.</p>
       {invoice.status==='paid'&&<p className="invoice-paid-note">Arve on makstud arvete arhiivis. „Arve makstud” linnukese eemaldamine avab selle uuesti tasumata arvena.</p>}
+      <label>Arve saaja / maksja<input name="payerName" maxLength={200} defaultValue={invoice.payer_name??defaultPayer} placeholder="Ettevõtte või inimese nimi"/></label>
       <div className="form-grid two">
         <label>Arve summa, €<input name="amount" inputMode="decimal" required={override} value={amount} onChange={e=>{setAmount(e.target.value);setOverride(true)}}/></label>
         <label>Arve number (vabatahtlik)<input name="number" maxLength={100} defaultValue={invoice.invoice_number??''}/></label>
