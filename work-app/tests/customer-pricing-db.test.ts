@@ -84,7 +84,7 @@ test('customer pricing persists with the paid day without changing wage calculat
     const ex=await expected();await db.query('update public.jobs set operator_id=$1 where id=$2',[operator,id]);await login(operator)
     await assert.rejects(db.query('update public.jobs set payer_name=$1 where id=$2',['Forbidden',id]),{code:'42501'})
     await assert.rejects(save(ex),{code:'42501'})
-    await assert.rejects(db.query('update public.jobs set customer_pricing=$1 where id=$2',[JSON.stringify(p),id]),{code:'42501'})
+    await assert.rejects(db.query('update public.jobs set customer_pricing=$1 where id=$2',[JSON.stringify({...p,agreed_total:20000}),id]),{code:'42501'})
     await assert.rejects(db.query('update public.jobs set estimated_total=1 where id=$1',[id]),{code:'42501'})
     await db.exec('reset role;set role anon');await assert.rejects(save(ex),{code:'42501'})
   })
