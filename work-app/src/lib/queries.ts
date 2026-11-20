@@ -257,7 +257,7 @@ export async function getAssignableOperators() {
 export async function getDispatchReferences() {
   const db = await createClient()
   const [employees, sites] = await Promise.all([
-    readAllPages<any>((a,b) => db.from('payroll_employees').select('id,name,active,hourly_rate_cents').order('name').order('id').range(a,b)),
+    readAllPages<any>((a,b) => db.from('payroll_employees').select('id,name,active,hourly_rate_cents,rate_history:payroll_rate_history(effective_from,hourly_rate_cents,previous_rate_cents)').order('name').order('id').range(a,b)),
     readAllPages<any>((a,b) => db.from('customer_sites').select('id,customer_id,name,address,source').eq('active',true).order('name').order('id').range(a,b)),
   ])
   return { employees, sites }

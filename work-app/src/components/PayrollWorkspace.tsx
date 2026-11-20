@@ -138,12 +138,17 @@ export function EmployeeForm({ employee }: {employee?:Employee}) {
   const [name,setName] = useState(employee?.name ?? '')
   const [rate,setRate] = useState(employee ? (employee.hourly_rate_cents / 100).toFixed(2) : '')
   const [active,setActive] = useState(employee?.active ?? true)
+  const [effectiveFrom,setEffectiveFrom]=useState(tallinnDate())
+  const [applyRate,setApplyRate]=useState(false)
+  const router=useRouter()
+  useEffect(()=>{if(state.savedVersion){setApplyRate(false);if(state.savedRate)setRate((state.savedRate/100).toFixed(2));router.refresh()}},[state.savedVersion,router])
   const [version,setVersion] = useState(employee?.updated_at ?? '')
   useEffect(()=>{ if(state.savedId && !employee) {setName(''); setRate('')} if(state.savedVersion) setVersion(state.savedVersion) },[state,employee])
   return <form action={action} onSubmit={e=>submitDraft(e,action)} className="stack">
     <input type="hidden" name="id" value={employee?.id ?? ''} /><input type="hidden" name="version" value={version} />
     <fieldset disabled={pending} className="payroll-fields stack">
-      <div className="form-grid two"><label>Töölise nimi<input name="name" required maxLength={120} value={name} onChange={e=>setName(e.target.value)} /></label><label>Tunnihind, €/h<input name="rate" required inputMode="decimal" placeholder="12,50" value={rate} onChange={e=>setRate(e.target.value)} /></label></div>
+      <div className="form-grid two"><label>Töölise nimi<input name="name" required maxLength={120} value={name} onChange={e=>setName(e.target.value)} /></label><label>Tunnihind, €/h<input name="rate" required inputMode="decimal" placeholder="12,50" value={rate} onChange={e=>{setRate(e.target.value);if(employee)setApplyRate(true)}} /></label></div>
+      {employee && <div className="stack"><label className="check-row"><input name="applyRate" type="checkbox" checked={applyRate} onChange={e=>setApplyRate(e.target.checked)}/> Rakenda tunnihind alates kuupäevast</label>{applyRate&&<><label>Kehtib alates<input name="effectiveFrom" type="date" required min="2000-01-01" max={tallinnDate()} value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)}/></label><p className="muted">Valitud kuupäev kaasa arvatud: töötunnid arvutatakse uue hinnaga kuni järgmise määratud hinnamuutuseni. Uueneb ka saadaolev palk. Töötunnid ja tehtud maksed säilivad.</p></>}</div>}
       {employee && <label className="check-row"><input name="active" type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} /> Aktiivne tööline</label>}
       <button className="button secondary" disabled={pending}>{pending ? 'Salvestan…' : employee ? 'Salvesta tööline' : 'Lisa tööline'}</button>
     </fieldset><Feedback state={state}/>

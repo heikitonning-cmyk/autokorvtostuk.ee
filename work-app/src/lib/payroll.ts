@@ -9,7 +9,7 @@ export type TimeEntry = {
   hourly_rate_cents: number; paid_minutes: number | null; wage_cents: number | null; note: string
   updated_at: string
 }
-export type ActionState = { error?: string; success?: string; savedId?: string; savedVersion?: string }
+export type ActionState = { error?: string; success?: string; savedId?: string; savedVersion?: string; savedRate?: number }
 
 export function parseRate(value: string): number {
   const normalized = value.trim().replace(',', '.')
