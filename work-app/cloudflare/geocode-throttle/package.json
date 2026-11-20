@@ -1,0 +1,13 @@
+{
+  "name": "autokorvtostuk-geocode-throttle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "4.34.0"
+  }
+}

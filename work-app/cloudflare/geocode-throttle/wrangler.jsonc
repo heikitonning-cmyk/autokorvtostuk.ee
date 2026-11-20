@@ -1,0 +1,25 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "autokorvtostuk-geocode-throttle",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "NOMINATIM_BASE_URL": "https://nominatim.openstreetmap.org",
+    "ROUTING_USER_AGENT": "autokorvtostuk.ee/1.0 (+https://autokorvtostuk.ee)"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GEOCODE_THROTTLE_SELF",
+        "class_name": "GeocodeThrottle"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GeocodeThrottle"]
+    }
+  ]
+}
