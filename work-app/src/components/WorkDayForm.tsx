@@ -60,8 +60,8 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
         <div className="day-team-heading"><h3>Objektide ajad tellijale</h3><button type="button" className="button secondary" onClick={()=>setJobs(list=>[...list,blank(crypto.randomUUID())])}>+ Lisa objekt</button></div>
         <div className="day-time-list">{jobs.map((j,index)=><div className="day-time-object" key={j.id}>
           <a href={`#job-${j.id}`} className="day-time-address">{index+1}. {j.address||'Uus objekt — täida aadress allpool'}</a>
-          <label>Tellija algus<input aria-label={`Objekt ${index+1} tellija algus`} type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label>
-          <label>Tellija lõpp<input aria-label={`Objekt ${index+1} tellija lõpp`} type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label>
+          <label>Tellijale algus<input aria-label={`Objekt ${index+1} tellija algus`} type="time" value={j.planned_time} onChange={e=>updateJob(j.id,{planned_time:e.target.value})}/></label>
+          <label>Tellijale lõpp<input aria-label={`Objekt ${index+1} tellija lõpp`} type="time" value={j.planned_end_time} onChange={e=>updateJob(j.id,{planned_end_time:e.target.value})}/></label>
           <label className="day-time-driver">Juht<select aria-label={`Objekt ${index+1} juht`} value={j.driver_employee_id} onChange={e=>{
             const id=e.target.value
             if(id)setWorkers(list=>list.some(w=>w.id===id)?list:[...list,{id,...shared,override:false}])
