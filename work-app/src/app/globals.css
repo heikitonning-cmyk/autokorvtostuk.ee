@@ -131,3 +131,24 @@ a.metric-card:focus-visible,a.attention-card:focus-visible,a.capacity-chip:focus
 
 .appointment-driver-times{display:grid;grid-template-columns:1fr 1fr;gap:20px}.appointment-driver-times>div{min-width:0}.appointment-driver-times small{display:block}.appointment-driver-times h3{font-size:15px;margin:0}.appointment-driver-times input{min-width:0}
 @media(max-width:700px){.appointment-driver-times{grid-template-columns:1fr;gap:16px}}
+
+/* One compact daily schedule: payroll day once, customer times per object. */
+.day-times{scroll-margin-top:100px;gap:12px}
+.day-time-list{display:grid;gap:8px}
+.day-time-object{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:end;padding:10px;border:1px solid var(--line);border-radius:12px}
+.day-time-object label{min-width:0;font-size:12px}
+.day-time-object input,.day-time-object select{min-width:0;width:100%;min-height:42px;padding:8px}
+.day-time-address{align-self:center;font-weight:700;overflow-wrap:anywhere}
+.day-time-worker{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.day-time-worker-edit{flex-basis:100%}
+.day-time-worker .check-row{margin-left:auto}
+.day-object{scroll-margin-top:100px}
+.day-times>.form-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:600px){
+ .day-time-object{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .day-time-address{grid-column:1/-1}
+ .day-time-driver{grid-column:1/-1}
+ .day-times{padding:14px}
+ .day-time-worker .check-row{margin-left:0}
+ .day-times .day-team-heading{flex-wrap:wrap;gap:8px}
+}
