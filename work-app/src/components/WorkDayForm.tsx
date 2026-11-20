@@ -21,7 +21,18 @@ function SavedAddress({sites,onChoose}:{sites:DispatchSite[];onChoose:(site:Disp
 export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings}) {
   const [date,setDate]=useState(data.date)
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
-  const [shared,setShared]=useState(()=>dayDefaults(data)),[workerDrafts,setWorkers]=useState(()=>initialWorkers(data))
+  const [initialSchedule]=useState(()=>{
+    const workers=initialWorkers(data)
+    const day=dayDefaults(data)
+    // A single worker's saved effective time is the whole paid day. Keep their
+    // exact hours and pause, without showing the same day as a separate override.
+    if(workers.length===1&&workers[0].override) {
+      const {start,end,pause,overnight}=workers[0]
+      return {day:{start,end,pause,overnight},workers:[{...workers[0],override:false}]}
+    }
+    return {day,workers}
+  })
+  const [shared,setShared]=useState(initialSchedule.day),[workerDrafts,setWorkers]=useState(initialSchedule.workers)
   const blank=(id:string):JobDraft=>({id,payer_name:'',address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
   const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,payer_name:j.payer_name??'',address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
   const workers=workerDrafts
