@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { payrollRateForDate } from '@/lib/payroll-rates'
 import type { PriceSettings } from '@/lib/domain'
 import { CustomerPriceFields } from '@/components/CustomerPriceFields'
 import { customerPrice, defaultCustomerPricing, initialCustomerPricing, type CustomerPricing } from '@/lib/customer-pricing'
@@ -42,7 +43,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
   const updateJob=(id:string,patch:Partial<JobDraft>)=>setJobs(list=>list.map(j=>j.id===id?{...j,...patch}:j))
   const updateWorker=(id:string,patch:Partial<WorkerDraft>)=>setWorkers(list=>list.map(w=>w.id===id?{...w,...patch}:w))
   const workerName=(w:WorkerDraft)=>w.is_new?w.name||'Uus tööline':employees.find(e=>e.id===w.id)?.name??'Tööline'
-  const rate=(w:WorkerDraft)=>w.is_new?parseRate(w.rate??''):data.entries.find(e=>e.employee_id===w.id)?.hourly_rate_cents??employees.find(e=>e.id===w.id)?.hourly_rate_cents??0
+  const rate=(w:WorkerDraft)=>w.is_new?parseRate(w.rate??''):payrollRateForDate(employees.find(e=>e.id===w.id)??{hourly_rate_cents:0},date,date===data.date?data.entries.find(e=>e.employee_id===w.id)?.hourly_rate_cents:undefined)
   let error='',preview:{id:string;name:string;minutes:number;cents:number}[]=[]
   try {timePayload(shared);preview=workers.map(w=>{const v=w.override?w:shared;const minutes=calculateTime(v.start,v.end,v.pause,v.overnight).paidMinutes;return {id:w.id,name:workerName(w),minutes,cents:wageCents(minutes,rate(w))}})} catch(e) {error=(e as Error).message}
   let pricingError=''

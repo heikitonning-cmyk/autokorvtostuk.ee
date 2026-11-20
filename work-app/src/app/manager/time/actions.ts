@@ -108,13 +108,25 @@ export async function saveEmployee(_previous: ActionState, form: FormData): Prom
   let rate
   try { rate = parseRate(value(form, 'rate')) } catch (e) { return { error: (e as Error).message } }
   const supabase = await createClient()
-  const row = { name, hourly_rate_cents: rate, active: id ? form.get('active') === 'on' : true }
-  const query = id ? supabase.from('payroll_employees').update(row).eq('id', id).eq('updated_at', value(form, 'version')) : supabase.from('payroll_employees').insert(row)
-  const { data, error } = await query.select('id,updated_at').maybeSingle()
-  if (error) return dbError(error)
-  if (!data) return { error: 'Töölise andmeid on vahepeal muudetud. Laadi leht uuesti ja kontrolli tunnihinda.' }
-  revalidatePath('/manager/time','layout')
-  return { success: id ? 'Töölise andmed salvestatud. Varasemate kirjete tunnihinnad säilisid.' : 'Tööline lisatud.', savedId: data.id, savedVersion: data.updated_at }
+  const effective=value(form,'effectiveFrom')
+  const applyRate=id && form.get('applyRate')==='on'
+  if(applyRate&&(!validDate(effective)||effective>tallinnDate())) return {error:'Vali tänane või varasem kehtivuse alguskuupäev.'}
+  let saved:any
+  if(id) {
+    const {data,error}=await supabase.rpc('save_payroll_employee_rate',{
+      p_employee_id:id,p_expected_version:value(form,'version'),p_name:name,p_active:form.get('active')==='on',
+      p_rate:rate,p_effective_from:applyRate?effective:null,
+    })
+    if(error) return error.code==='P0001'?{error:'Töölise andmeid on vahepeal muudetud. Värskenda lehte.'}:error.code==='23514'?{error:error.message}:dbError(error)
+    saved=data
+  } else {
+    const {data,error}=await supabase.from('payroll_employees').insert({name,hourly_rate_cents:rate,active:true}).select('id,updated_at').single()
+    if(error) return dbError(error)
+    saved=data
+  }
+  revalidatePath('/manager','layout')
+  return {success:!id?'Tööline lisatud.':applyRate?`Tunnihind rakendatud alates ${effective.split('-').reverse().join('.')}. Uuendatud ${saved.changed_entries} tööajakirjet. Maksete ajalugu säilis.`:'Töölise andmed salvestatud.',savedId:saved.id,savedVersion:saved.updated_at,savedRate:saved.hourly_rate_cents}
+
 }
 
 export async function addPayrollSite(_previous: ActionState, form: FormData): Promise<ActionState> {

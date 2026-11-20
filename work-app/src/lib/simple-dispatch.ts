@@ -1,4 +1,5 @@
-export type DispatchEmployee = { id: string; name: string; active: boolean; hourly_rate_cents: number }
+import type { PayrollRate } from './payroll-rates.ts'
+export type DispatchEmployee = { id: string; name: string; active: boolean; hourly_rate_cents: number; rate_history?:PayrollRate[] }
 export type DispatchSite = { id: string; customer_id: string; name: string; address: string; source?: string | null }
 
 export function visibleDispatchSites(sites: DispatchSite[], showNeste: boolean, search: string) {
