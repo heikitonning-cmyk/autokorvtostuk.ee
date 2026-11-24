@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { normalizeCaptureTime } from '@/lib/photo-time'
 import { createClient } from '@/lib/supabase/server'
 import { currentUser } from '@/lib/session'
 
@@ -22,6 +23,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (stopError || !stop) return NextResponse.json({ error: 'invalid stop' }, { status: 400 })
   }
 
+  const captureValue=form.get('capturedAt')
+  const capturedAt=normalizeCaptureTime(captureValue)
+  if(captureValue&&!capturedAt) return NextResponse.json({error:'invalid capture time'},{status:400})
   const file = form.get('file')
   if (!(file instanceof File) || !file.type.startsWith('image/')) return NextResponse.json({ error: 'invalid file' }, { status: 400 })
   if (file.size > 12 * 1024 * 1024) return NextResponse.json({ error: 'file too large' }, { status: 413 })
@@ -38,6 +42,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     uploaded_by: user.id,
     storage_path: path,
     category: safeCategory,
+    captured_at: capturedAt,
   })
   if (rowError) {
     await supabase.storage.from('job-photos').remove([path])
@@ -45,3 +50,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   return NextResponse.json({ ok: true })
 }
+
