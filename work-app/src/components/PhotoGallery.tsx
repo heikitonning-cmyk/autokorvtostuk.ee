@@ -30,7 +30,7 @@ export function PhotoGallery({photos,manager=false}:{photos:GalleryPhoto[];manag
  <small>{photoTimeLabel(p)}</small>{p.archived_at&&<small>Dropboxi arhiivis</small>}
  {manager&&<>{p.archive_error&&<small role="status">{p.archive_error}</small>}<PhotoArchiveActions photoId={p.id}/></>}
  </div>)}</div>
- <dialog ref={dialog} className={styles.dialog} aria-label="Töö fotogalerii" onCancel={()=>setActive(null)} onClose={()=>setActive(null)} onKeyDown={e=>{if(e.key==='ArrowLeft'){e.preventDefault();move(-1)}if(e.key==='ArrowRight'){e.preventDefault();move(1)}}>
+ <dialog ref={dialog} className={styles.dialog} aria-label="Töö fotogalerii" onCancel={()=>setActive(null)} onClose={()=>setActive(null)} onKeyDown={e=>{if(e.key==='ArrowLeft'){e.preventDefault();move(-1)}if(e.key==='ArrowRight'){e.preventDefault();move(1)}}}>
  {photo&&<div className={styles.viewer}>
  <div className={styles.toolbar}><strong aria-live="polite">Foto {index+1} / {available.length}</strong><button type="button" className="button secondary" autoFocus onClick={()=>setActive(null)} aria-label="Sulge galerii">Sulge ✕</button></div>
  <div className={styles.stage} onTouchStart={e=>{touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY}}} onTouchEnd={e=>{const start=touch.current;touch.current=null;if(!start||!e.changedTouches[0])return;const dx=e.changedTouches[0].clientX-start.x,dy=e.changedTouches[0].clientY-start.y;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)move(dx<0?1:-1)}}>
