@@ -1,5 +1,6 @@
 'use client'
 import {useRef,useState} from 'react'
+import {jpegCaptureTime} from '@/lib/photo-time'
 import {useRouter} from 'next/navigation'
 async function prepare(file:File):Promise<Blob>{
  if(!file.type.startsWith('image/'))throw new Error('Vali pildifail.')
@@ -30,7 +31,9 @@ export function PhotoUploader({jobId,jobStopId}:{jobId:string;jobStopId?:string}
  let saved=0;const failed:string[]=[]
  for(const file of Array.from(files)){
  try{
+ const capturedAt=jpegCaptureTime(await file.slice(0,1024*1024).arrayBuffer())
  const body=new FormData();body.set('file',await prepare(file),'photo.jpg');body.set('category','during')
+ if(capturedAt)body.set('capturedAt',capturedAt)
  if(jobStopId)body.set('jobStopId',jobStopId)
  const res=await fetch('/api/jobs/'+jobId+'/photos',{method:'POST',body})
  if(!res.ok)throw new Error(res.status===403?'Puudub selle töö fotode lisamise õigus.':'Salvestamine ebaõnnestus. Proovi uuesti.')
@@ -47,3 +50,4 @@ export function PhotoUploader({jobId,jobStopId}:{jobId:string;jobStopId?:string}
  <div className="form-grid two"><button type="button" className="button secondary" disabled={busy} onClick={()=>camera.current?.click()}>Pildista</button><button type="button" className="button secondary" disabled={busy} onClick={()=>gallery.current?.click()}>Lisa galeriist</button></div>
  <small role="status">{busy?'Laen fotosid…':message}</small></div>
 }
+
