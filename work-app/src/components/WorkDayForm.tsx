@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { driverDayWithTravel } from '@/lib/driver-travel'
 import { payrollRateForDate } from '@/lib/payroll-rates'
 import type { PriceSettings } from '@/lib/domain'
 import { CustomerPriceFields } from '@/components/CustomerPriceFields'
@@ -48,6 +49,17 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
   try {timePayload(shared);preview=workers.map(w=>{const v=w.override?w:shared;const minutes=calculateTime(v.start,v.end,v.pause,v.overnight).paidMinutes;return {id:w.id,name:workerName(w),minutes,cents:wageCents(minutes,rate(w))}})} catch(e) {error=(e as Error).message}
   let pricingError=''
   try {for(const j of jobs) customerPrice(j.customer_pricing,j.planned_time,j.planned_end_time)} catch(e){pricingError=(e as Error).message}
+  const applyDriverTravel=(worker:WorkerDraft)=>{
+    setLocalError('')
+    try {
+      const travel=driverDayWithTravel(jobs,worker.id)
+      const value={...(worker.override?worker:shared),...travel}
+      if(workers.length===1) {
+        setShared(value)
+        setWorkers(list=>applySharedTime(list,value))
+      } else updateWorker(worker.id,{...value,override:true})
+    } catch(err) {setLocalError((err as Error).message)}
+  }
   const before=totals(data.entries),after=preview.reduce((s,w)=>s+w.cents,0)
   const running=data.entries.filter(e=>e.end_minute===null)
   return <form action={action} onSubmit={e=>{
@@ -66,6 +78,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
           const row=preview.find(p=>p.id===w.id)
           return <div className="day-time-worker" key={w.id}><strong>{workerName(w)}</strong><span>{value.start}–{value.end}{value.overnight?' (+1 päev)':''} · {row?hours(row.minutes):'Kontrolli aega'}</span>
             <label className="check-row compact"><input type="checkbox" checked={w.override} onChange={e=>updateWorker(w.id,{...shared,override:e.target.checked})}/> Eraldi päev</label>
+            {jobs.some(j=>j.driver_employee_id===w.id)&&<div className="stack day-time-worker-edit"><button type="button" className="button secondary" onClick={()=>applyDriverTravel(w)}>Arvuta {workerName(w)} tööpäev · sõit 45 + 45 min</button><small className="muted">Esimese objekti algus −45 min, viimase lõpp +45 min. Korduv vajutus aega juurde ei liida. Salvesta päev, et palgatunnid uueneksid.</small></div>}
             {w.override&&<div className="stack day-time-worker-edit"><TimeInputs prefix={workerName(w)} value={w} onChange={value=>updateWorker(w.id,value)}/><button className="text-button" type="button" onClick={()=>updateWorker(w.id,{...shared,override:false})}>Kasuta ühist tööpäeva</button></div>}
           </div>
         })}</div>}
