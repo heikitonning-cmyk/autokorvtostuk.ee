@@ -200,8 +200,11 @@ export async function deleteJob(formData: FormData) {
     .eq('job_id', id)
   if (photosError) redirect(`/manager/jobs/${id}?error=delete-job`)
 
-  const { error } = await supabase.from('jobs').delete().eq('id', id)
-  if (error) redirect(`/manager/jobs/${id}?error=delete-job`)
+  const { error } = await supabase.rpc('delete_job_with_sheet',{p_job_id:id,p_delete_sheet:formData.get('deleteSheet')==='on'})
+  if (error) {
+    const reason=['delete-invoice','delete-sheet'].includes(error.message)?error.message:'delete-job'
+    redirect(`/manager/jobs/${id}?error=${reason}`)
+  }
 
   const storagePaths = (photos ?? []).map((photo: any) => photo.storage_path).filter(Boolean)
   if (storagePaths.length) await supabase.storage.from('job-photos').remove(storagePaths)

@@ -31,7 +31,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   return <div className="page narrow stack-lg">
     <Link className="back-link" href="/manager">← Tööde juurde</Link>
     {query.saved && <div className="alert success">Töö salvestatud.</div>}
-    {query.error && <div role="alert" className="alert danger">Toiming ebaõnnestus. Proovi uuesti.</div>}
+    {query.error && <div role="alert" className="alert danger">{query.error==='delete-sheet'?'Tööl on allkirjastatud saateleht. Proovitöö eemaldamiseks märgi kustutamise juures ka saatelehe ja allkirja kustutamine.':query.error==='delete-invoice'?'Tööga on seotud arve. Seda tööd ei saa jäädavalt kustutada; vajadusel tühista töö.':'Toiming ebaõnnestus. Proovi uuesti.'}</div>}
     <SimpleJobDetails job={job} /><JobDeliverySheet job={job}/><JobPhotos manager jobId={id} photos={job.job_photos??[]} />
     <CustomerPriceSummary job={job}/>
     <section className="detail-card stack"><h2>Arve</h2>
