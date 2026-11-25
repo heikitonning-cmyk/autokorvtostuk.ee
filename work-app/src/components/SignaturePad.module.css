@@ -9,3 +9,5 @@
 .footer button {min-width:110px}
 .error {margin:0;padding:6px 16px;color:#b91c1c}
 @media (orientation:landscape) and (max-height:500px) {.header,.footer {padding:5px 12px}.header button,.footer button {min-height:36px;padding:6px 16px}}
+
+.dialog[open] {margin:0}
