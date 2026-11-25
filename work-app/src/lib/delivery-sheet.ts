@@ -44,7 +44,7 @@ export function deliverySnapshot(job:SheetJob,settings:PriceSettings,raw:unknown
   return {version:1,jobId:job.id,input,object:job.object_name||job.address||'',address:job.address||'',description:job.description||'',vehicle:job.vehicle?.registration_number||'543 CTJ',supplier:{name:'Euro Kapital OÜ',registry:'17401393',address:'Vikerlase 5-5, Tallinn',phone:'55567630'},minutes,pricing:p,rows,total:result.total!,sourceUpdatedAt:job.updated_at??null}
 }
 export type DeliverySnapshot=ReturnType<typeof deliverySnapshot>
-export type SavedSheet={id:string; job_id:string;snapshot:DeliverySnapshot;signature:Signature;signed_at:string;created_by:string}
+export type SavedSheet={sheet_number:string;sheet_year:number;sheet_sequence:number;id:string; job_id:string;snapshot:DeliverySnapshot;signature:Signature;signed_at:string;created_by:string}
 export function validateSignature(value:unknown):Signature {
   if(!Array.isArray(value)||value.length<1||value.length>100) throw new Error('Palun lisa tellija allkiri.')
   let count=0,distance=0
