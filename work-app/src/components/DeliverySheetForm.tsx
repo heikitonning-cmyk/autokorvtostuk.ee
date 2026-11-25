@@ -1,6 +1,7 @@
 'use client'
-import { useRef, useState, type PointerEvent } from 'react'
+import { useState } from 'react'
 import { sheetDefaults, type SheetJob, type SheetInput, type SavedSheet, type DeliverySnapshot, type Signature } from '@/lib/delivery-sheet'
+import { SignaturePad } from './SignaturePad'
 import styles from './DeliverySheetForm.module.css'
 
 const money=(c:number)=>(c/100).toLocaleString('et-EE',{style:'currency',currency:'EUR'})
@@ -25,9 +26,7 @@ export function DeliverySheetForm({job,initial}:{job:SheetJob;initial:SavedSheet
   const [preview,setPreview]=useState<DeliverySnapshot|null>(null),[saved,setSaved]=useState(initial)
   const [signature,setSignature]=useState<Signature>([]),[confirmed,setConfirmed]=useState(false)
   const [error,setError]=useState(''),[busy,setBusy]=useState(false)
-  const activePointer=useRef<number|null>(null)
   const change=<K extends keyof SheetInput>(key:K,value:SheetInput[K])=>{setInput(s=>({...s,[key]:value}));setPreview(null);setSignature([]);setConfirmed(false);setError('')}
-  const point=(e:PointerEvent<SVGSVGElement>)=>{const b=e.currentTarget.getBoundingClientRect();return [Math.round(Math.max(0,Math.min(600,(e.clientX-b.left)/b.width*600))*10)/10,Math.round(Math.max(0,Math.min(200,(e.clientY-b.top)/b.height*200))*10)/10]}
   async function submit(action:'preview'|'sign') {
     setBusy(true);setError('')
     try {
@@ -44,13 +43,9 @@ export function DeliverySheetForm({job,initial}:{job:SheetJob;initial:SavedSheet
     {open&&(saved?<><SheetReview sheet={saved.snapshot}/><strong>Tellija allkiri: {saved.snapshot.input.signer}</strong><svg className={styles.signature} viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Tellija salvestatud allkiri"><SignatureImage value={saved.signature}/></svg><small>Allkirjastatud {new Date(saved.signed_at).toLocaleString('et-EE',{timeZone:'Europe/Tallinn'})}. Allkirjastatud lehe andmed on lukustatud.</small></>:preview?<>
       <SheetReview sheet={preview}/>
       <button type="button" disabled={busy} className="button secondary" onClick={()=>{setPreview(null);setSignature([]);setConfirmed(false);setError('')}}>Tagasi andmeid muutma</button>
-      <h3>Tellija allkiri</h3><p>{input.signer} — palun kontrolli ülal tööaega, sõitu ja kogusummat ning allkirjasta sõrmega allolevas kastis.</p>
-      <svg className={styles.signature} viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Joonista tellija allkiri" style={{touchAction:'none'}}
-        onPointerDown={e=>{if(busy||activePointer.current!==null)return;e.preventDefault();activePointer.current=e.pointerId;e.currentTarget.setPointerCapture(e.pointerId);const p=point(e);setSignature(s=>[...s,[p]])}}
-        onPointerMove={e=>{if(activePointer.current!==e.pointerId||busy)return;e.preventDefault();const p=point(e);setSignature(s=>s.length?s.map((stroke,i)=>i===s.length-1?[...stroke,p]:stroke):s)}}
-        onPointerUp={e=>{if(activePointer.current===e.pointerId)activePointer.current=null}}
-        onPointerCancel={()=>{activePointer.current=null}} onLostPointerCapture={()=>{activePointer.current=null}}><SignatureImage value={signature}/></svg>
-      <button type="button" className="button secondary" disabled={busy} onClick={()=>{setSignature([]);setConfirmed(false)}}>Kustuta allkiri</button>
+      <h3>Tellija allkiri</h3><p>{input.signer} — kontrolli tööaega, sõitu ja kogusummat ning ava allkirjastamiseks suur kirjutuspind.</p>
+      {signature.length>0&&<svg className={styles.signature} viewBox="0 0 600 200" role="img" aria-label="Tellija allkirja eelvaade"><SignatureImage value={signature}/></svg>}
+      <SignaturePad disabled={busy} hasSignature={signature.length>0} onDone={value=>{setSignature(value);setConfirmed(false)}}/>
       <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={busy} onChange={e=>setConfirmed(e.target.checked)}/>Kinnitan tellijana ülal näidatud tööaja, teenused ja summa {money(preview.total)}.</label>
       <button type="button" className="button primary wide" disabled={busy||!confirmed||!signature.length} onClick={()=>submit('sign')}>{busy?'Salvestan…':'Kinnita ja salvesta allkirjastatud saateleht'}</button>
     </>:<form className="stack" onSubmit={e=>{e.preventDefault();submit('preview')}}>
