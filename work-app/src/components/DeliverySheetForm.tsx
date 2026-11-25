@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { sheetDefaults, type SheetJob, type SheetInput, type SavedSheet, type DeliverySnapshot, type Signature } from '@/lib/delivery-sheet'
+import { DeliveryInvoiceLine } from './DeliveryInvoiceLine'
 import { SignaturePad } from './SignaturePad'
 import styles from './DeliverySheetForm.module.css'
 
@@ -9,10 +10,10 @@ const quantity=(n:number)=>n.toLocaleString('et-EE',{maximumFractionDigits:2})
 function SignatureImage({value}:{value:Signature}) {
   return <>{value.map((stroke,i)=><polyline key={i} points={stroke.map(p=>p.join(',')).join(' ')} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>)}</>
 }
-function SheetReview({sheet}:{sheet:DeliverySnapshot}) {
+function SheetReview({sheet,number}:{sheet:DeliverySnapshot;number?:string}) {
   const {input}=sheet
   return <div className="stack">
-    <div><h3>ARVE-SAATELEHT</h3><strong>{sheet.supplier.name}</strong><p>Reg. {sheet.supplier.registry} · {sheet.supplier.address}<br/>Tel. {sheet.supplier.phone}</p></div>
+    <div><h3>ARVE-SAATELEHT{number?` nr ${number}`:''}</h3><strong>{sheet.supplier.name}</strong><p>Reg. {sheet.supplier.registry} · {sheet.supplier.address}<br/>Tel. {sheet.supplier.phone}</p></div>
     <div><strong>Tellija / maksja: {input.customer}</strong><p>{input.billingAddress}<br/>{input.contact}{input.email&&` · ${input.email}`}</p></div>
     <div><strong>{sheet.object}</strong>{sheet.address!==sheet.object&&<p>{sheet.address}</p>}<p>{sheet.description}</p></div>
     <p><strong>{input.date.split('-').reverse().join('.')} · {input.start}–{input.end}{input.nextDay?' (+1 päev)':''}</strong><br/>Tööaeg {Math.floor(sheet.minutes/60)} h {sheet.minutes%60} min · Masin {sheet.vehicle}</p>
@@ -37,10 +38,10 @@ export function DeliverySheetForm({job,initial}:{job:SheetJob;initial:SavedSheet
     }catch(e){setError(e instanceof Error?e.message:'Ühendus katkes. Proovi uuesti.')}finally{setBusy(false)}
   }
   return <section className="detail-card stack" aria-label="Saateleht">
-    <div className="day-team-heading"><h2>Saateleht ja tellija allkiri</h2>{saved&&<strong>{money(saved.snapshot.total)}</strong>}</div>
+    <div className="day-team-heading"><h2>{saved?`Saateleht nr ${saved.sheet_number}`:'Saateleht ja tellija allkiri'}</h2>{saved&&<strong>{money(saved.snapshot.total)}</strong>}</div>
     <p>{saved?`Allkirjastatud · ${saved.snapshot.input.signer}`:'Sisesta tegelik tööaeg ja sõit. Tellija kinnitab telefoni ekraanil sõrmega.'}</p>
     <button type="button" className="button secondary wide" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?'Peida saateleht':saved?'Vaata allkirjastatud saatelehte':'Täida saateleht'}</button>
-    {open&&(saved?<><SheetReview sheet={saved.snapshot}/><strong>Tellija allkiri: {saved.snapshot.input.signer}</strong><svg className={styles.signature} viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Tellija salvestatud allkiri"><SignatureImage value={saved.signature}/></svg><small>Allkirjastatud {new Date(saved.signed_at).toLocaleString('et-EE',{timeZone:'Europe/Tallinn'})}. Allkirjastatud lehe andmed on lukustatud.</small></>:preview?<>
+    {open&&(saved?<><SheetReview sheet={saved.snapshot} number={saved.sheet_number}/><DeliveryInvoiceLine number={saved.sheet_number} total={saved.snapshot.total}/><strong>Tellija allkiri: {saved.snapshot.input.signer}</strong><svg className={styles.signature} viewBox="0 0 600 200" preserveAspectRatio="none" role="img" aria-label="Tellija salvestatud allkiri"><SignatureImage value={saved.signature}/></svg><small>Allkirjastatud {new Date(saved.signed_at).toLocaleString('et-EE',{timeZone:'Europe/Tallinn'})}. Allkirjastatud lehe andmed on lukustatud.</small></>:preview?<>
       <SheetReview sheet={preview}/>
       <button type="button" disabled={busy} className="button secondary" onClick={()=>{setPreview(null);setSignature([]);setConfirmed(false);setError('')}}>Tagasi andmeid muutma</button>
       <h3>Tellija allkiri</h3><p>{input.signer} — kontrolli tööaega, sõitu ja kogusummat ning ava allkirjastamiseks suur kirjutuspind.</p>
