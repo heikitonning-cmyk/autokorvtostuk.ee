@@ -1,9 +1,10 @@
+import { getJobSeries } from '@/lib/job-series-queries'
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { currentUser } from '@/lib/session'
 import { getPricingSettings } from '@/lib/queries'
-import { deliverySnapshot, validateSignature } from '@/lib/delivery-sheet'
+import { seriesDeliverySnapshot, validateSignature } from '@/lib/delivery-sheet'
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}) {
   if(request.headers.get('origin')!==new URL(request.url).origin) return NextResponse.json({error:'Keelatud päring.'},{status:403})
@@ -16,15 +17,16 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     const bodyText=await request.text()
     if(bodyText.length>300000) return NextResponse.json({error:'Allkiri on liiga mahukas.'},{status:413})
     const body=JSON.parse(bodyText)
-    const snapshot=deliverySnapshot(job,await getPricingSettings(),body.input)
+    const {rootId,jobs}=await getJobSeries(job)
+    const snapshot=seriesDeliverySnapshot(jobs,await getPricingSettings(),body.input,body.days,rootId)
     if(body.action==='preview') return NextResponse.json({snapshot},{headers:{'Cache-Control':'no-store'}})
     if(body.action!=='sign'||body.confirmed!==true) throw new Error('Tellija peab kinnitama saatelehe andmed.')
     // Never attach an existing signature to newly changed prices or job details.
     if(JSON.stringify(snapshot)!==JSON.stringify(body.snapshot)) return NextResponse.json({error:'Töö andmed või hind muutusid. Ava uuesti eelvaade ja palu tellijal uuesti allkirjastada.'},{status:409})
     const signature=validateSignature(body.signature)
-    const {data:saved,error:saveError}=await supabase.from('job_delivery_sheets').insert({job_id:id,snapshot,signature,created_by:user.id}).select('*').single()
-    if(saveError) return NextResponse.json({error:saveError.code==='23505'?'Selle töö saateleht on juba allkirjastatud. Värskenda lehte.':'Saatelehte ei õnnestunud salvestada. Allkiri on alles; proovi uuesti.'},{status:saveError.code==='23505'?409:500})
-    revalidatePath(`/manager/jobs/${id}`);revalidatePath(`/operator/jobs/${id}`)
+    const {data:saved,error:saveError}=await supabase.from('job_delivery_sheets').insert({job_id:rootId,snapshot,signature,created_by:user.id}).select('*').single()
+    if(saveError) return NextResponse.json({error:saveError.code==='23514'?saveError.message:saveError.code==='23505'?'Selle töö saateleht on juba allkirjastatud. Värskenda lehte.':'Saatelehte ei õnnestunud salvestada. Allkiri on alles; proovi uuesti.'},{status:saveError.code==='23505'?409:500})
+    for(const day of jobs) {revalidatePath(`/manager/jobs/${day.id}`);revalidatePath(`/operator/jobs/${day.id}`)}
     return NextResponse.json({saved},{headers:{'Cache-Control':'no-store'}})
   } catch(error) {return NextResponse.json({error:error instanceof Error?error.message:'Kontrolli saatelehe andmeid.'},{status:400})}
 }

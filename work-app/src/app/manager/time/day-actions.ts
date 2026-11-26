@@ -13,7 +13,10 @@ export async function saveWorkDay(_previous:ActionState,form:FormData):Promise<A
   try {
     const payload=JSON.parse(String(form.get('payload')??''))
     const db=await createClient()
-    const {error}=await db.rpc('save_dated_work_day',{p_request_id:payload.requestId,p_date:date,p_target_date:targetDate,p_expected:payload.expected,p_day:payload.day,p_jobs:payload.jobs,p_workers:payload.workers})
+    const common={p_request_id:payload.requestId,p_date:date,p_expected:payload.expected,p_day:payload.day,p_jobs:payload.jobs,p_workers:payload.workers}
+    const {error}=payload.continuation
+      ?await db.rpc('save_continuation_day',{...common,p_source_id:payload.continuation.sourceId,p_new_job_id:payload.continuation.newJobId,p_source_updated_at:payload.continuation.sourceUpdatedAt})
+      :await db.rpc('save_dated_work_day',{...common,p_target_date:targetDate})
     if(error) {
       if(error.code==='23P01') return {error:'Ühel töölisel kattub päev mõne teise tööajaga, näiteks üle südaöö. Ühtegi muudatust ei salvestatud.'}
       if(error.code==='P0001'||(error.code==='23514'&&!error.message.includes('constraint'))) return {error:error.message}

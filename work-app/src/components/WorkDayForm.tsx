@@ -1,5 +1,7 @@
 'use client'
 import Link from 'next/link'
+import { continuationSchedule } from '@/lib/job-series'
+import type { DayJob } from '@/lib/work-days'
 import { driverDayWithTravel } from '@/lib/driver-travel'
 import { payrollRateForDate } from '@/lib/payroll-rates'
 import type { PriceSettings } from '@/lib/domain'
@@ -20,10 +22,11 @@ function SavedAddress({sites,onChoose}:{sites:DispatchSite[];onChoose:(site:Disp
   const [search,setSearch]=useState(''),[neste,setNeste]=useState(false)
   return <details><summary>Vali salvestatud aadress</summary><div className="stack top-gap"><input aria-label="Otsi aadressi" placeholder="Otsi aadressi" value={search} onChange={e=>setSearch(e.target.value)}/><label className="check-row"><input type="checkbox" checked={neste} onChange={e=>setNeste(e.target.checked)}/> Näita Neste aadresse</label><select aria-label="Salvestatud aadress" value="" onChange={e=>{const site=sites.find(s=>s.id===e.target.value);if(site) onChoose(site)}}><option value="">Vali aadress</option>{visibleDispatchSites(sites,neste,search).map(s=><option key={s.id} value={s.id}>{s.address||s.name}</option>)}</select></div></details>
 }
-export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings}) {
+export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing,continuation}:{data:DayData;employees:DispatchEmployee[];sites:DispatchSite[];requestId:string;newJobId?:string;pricing:PriceSettings;continuation?:{job:DayJob;data:DayData}}) {
   const [date,setDate]=useState(data.date)
   const [state,action,pending]=useActionState(saveWorkDay,{} as ActionState)
   const [initialSchedule]=useState(()=>{
+    if(continuation) return continuationSchedule(data,continuation.data)
     const workers=initialWorkers(data)
     const day=dayDefaults(data)
     // A single worker's saved effective time is the whole paid day. Keep their
@@ -36,7 +39,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
   })
   const [shared,setShared]=useState(initialSchedule.day),[workerDrafts,setWorkers]=useState(initialSchedule.workers)
   const blank=(id:string):JobDraft=>({id,payer_name:'',address:'',planned_time:'',planned_end_time:'',contact_phone:'',description:'',driver_employee_id:'',site_id:'',customer_pricing:defaultCustomerPricing(pricing)})
-  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,payer_name:j.payer_name??'',address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[blank(newJobId)]:[])])
+  const [jobs,setJobs]=useState<JobDraft[]>(()=>[...data.jobs.map(j=>({id:j.id,payer_name:j.payer_name??'',address:j.address??'',planned_time:j.planned_time?.slice(0,5)??'',planned_end_time:j.planned_end_time?.slice(0,5)??'',contact_phone:j.contact_phone??'',description:j.description??'',driver_employee_id:j.driver_employee_id??'',site_id:j.site_id??'',customer_pricing:initialCustomerPricing(j,pricing)})),...(newJobId?[continuation?{...blank(newJobId),...continuation.job,id:newJobId,payer_name:continuation.job.payer_name??'',address:continuation.job.address??'',planned_time:continuation.job.planned_time?.slice(0,5)??'',planned_end_time:continuation.job.planned_end_time?.slice(0,5)??'',contact_phone:continuation.job.contact_phone??'',description:continuation.job.description??'',driver_employee_id:continuation.job.driver_employee_id??'',site_id:continuation.job.site_id??'',customer_pricing:{...initialCustomerPricing(continuation.job,pricing),billed_minutes:null,operator_minutes:null,helper_minutes:null}}:blank(newJobId)]:[])])
   const workers=workerDrafts
   const [localError,setLocalError]=useState('')
   const [draftRequest]=useState(requestId)
@@ -66,7 +69,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
     e.preventDefault();setLocalError('')
     try {
       for(const j of jobs) customerPrice(j.customer_pricing,j.planned_time,j.planned_end_time)
-      const payload={requestId:draftRequest,expected,day:timePayload(shared),jobs,workers:workers.map(w=>({id:w.id,override:w.override,...timePayload(w.override?w:shared),...(w.is_new?{is_new:true,name:w.name,hourly_rate_cents:rate(w)}:{})}))}
+      const payload={requestId:draftRequest,...(continuation?{continuation:{sourceId:continuation.job.id,newJobId,sourceUpdatedAt:continuation.job.updated_at}}:{}),expected,day:timePayload(shared),jobs,workers:workers.map(w=>({id:w.id,override:w.override,...timePayload(w.override?w:shared),...(w.is_new?{is_new:true,name:w.name,hourly_rate_cents:rate(w)}:{})}))}
       const form=new FormData();form.set('date',data.date);form.set('targetDate',date);form.set('payload',JSON.stringify(payload));startTransition(()=>action(form))
     } catch(err){setLocalError((err as Error).message)}
   }} className="stack-lg">
@@ -108,6 +111,7 @@ export function WorkDayForm({data,employees,sites,requestId,newJobId,pricing}:{d
       </section>
       <section className="stack"><div className="day-team-heading"><div><h2>Objektid <span className="count">{jobs.length}</span></h2><p className="muted">Tööajad tellijale. Need ei lisa palgale tunde teist korda.</p></div><button type="button" className="button secondary" onClick={()=>setJobs(list=>[...list,blank(crypto.randomUUID())])}>+ Lisa objekt</button></div>
         {jobs.map((j,index)=><details className="form-card day-object" key={j.id} id={`job-${j.id}`} open={!data.jobs.some(old=>old.id===j.id)}><summary>Objekt {index+1} · {j.address||'Uus objekt'}</summary><div className="stack top-gap"><div className="day-team-heading"><h3>Objekt {index+1}</h3>{!data.jobs.some(old=>old.id===j.id)&&<button type="button" className="text-button" onClick={()=>setJobs(list=>list.filter(x=>x.id!==j.id))}>Eemalda</button>}</div>
+          {data.jobs.some(old=>old.id===j.id)&&<Link className="button secondary" href={`/manager/jobs/new?continue=${j.id}`}>+ Lisa järgmine päev</Link>}
           <label>Aadress<input required maxLength={500} value={j.address} placeholder="Tänav, maja, linn" onChange={e=>updateJob(j.id,{address:e.target.value,site_id:''})}/></label>
           <label>Arve saaja / maksja (vabatahtlik)<input maxLength={200} value={j.payer_name} placeholder="Ettevõtte või inimese nimi" onChange={e=>updateJob(j.id,{payer_name:e.target.value})}/></label>
           <SavedAddress sites={sites} onChoose={s=>updateJob(j.id,{address:s.address||s.name,site_id:s.id})}/>

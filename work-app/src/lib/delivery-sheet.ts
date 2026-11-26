@@ -43,7 +43,23 @@ export function deliverySnapshot(job:SheetJob,settings:PriceSettings,raw:unknown
   if(p.agreed_total!==null) { const correction=p.agreed_total-rows.reduce((s,r)=>s+r.amount,0);add('Kokkulepitud lõpphinna korrigeerimine','kmpl',1,correction,correction) }
   return {version:1,jobId:job.id,input,object:job.object_name||job.address||'',address:job.address||'',description:job.description||'',vehicle:job.vehicle?.registration_number||'543 CTJ',supplier:{name:'Euro Kapital OÜ',registry:'17401393',address:'Vikerlase 5-5, Tallinn',phone:'55567630'},minutes,pricing:p,rows,total:result.total!,sourceUpdatedAt:job.updated_at??null}
 }
-export type DeliverySnapshot=ReturnType<typeof deliverySnapshot>
+export type DailySnapshot=ReturnType<typeof deliverySnapshot>
+export type DeliverySnapshot=DailySnapshot & {days?:DailySnapshot[]}
+export type SheetDayInput=Pick<SheetInput,'date'|'start'|'end'|'nextDay'|'transport'|'km'|'operatorWork'> & {jobId:string}
+/** Price each day with its existing pricing, then sum; never price the overnight gap. */
+export function seriesDeliverySnapshot(jobs:SheetJob[],settings:PriceSettings,raw:unknown,rawDays:unknown,rootId:string):DeliverySnapshot {
+  if(jobs.length===1&&!Array.isArray(rawDays)) return deliverySnapshot(jobs[0],settings,raw)
+  if(!Array.isArray(rawDays)||rawDays.length!==jobs.length||new Set(rawDays.map(d=>d?.jobId)).size!==jobs.length) throw new Error('Saatelehel peavad olema kõik selle töö päevad ühe korra.')
+  const common=raw as SheetInput
+  const days=jobs.map(job=>{
+    const day=rawDays.find(d=>d?.jobId===job.id)
+    if(!day||day.date!==job.planned_date) throw new Error('Töö päevad on muutunud. Ava saateleht uuesti.')
+    return deliverySnapshot(job,settings,{...common,date:day.date,start:day.start,end:day.end,nextDay:day.nextDay,transport:day.transport,km:day.km,operatorWork:day.operatorWork})
+  })
+  if(!days.length) throw new Error('Töö päevi ei leitud.')
+  return {...days[0],version:2,jobId:rootId,days,minutes:days.reduce((n,d)=>n+d.minutes,0),total:days.reduce((n,d)=>n+d.total,0),
+    rows:days.flatMap(d=>d.rows.map(row=>({...row,label:`${d.input.date.split('-').reverse().join('.')} · ${row.label}`})))}
+}
 export type SavedSheet={sheet_number:string;sheet_year:number;sheet_sequence:number;id:string; job_id:string;snapshot:DeliverySnapshot;signature:Signature;signed_at:string;created_by:string}
 export function validateSignature(value:unknown):Signature {
   if(!Array.isArray(value)||value.length<1||value.length>100) throw new Error('Palun lisa tellija allkiri.')
@@ -59,3 +75,4 @@ export function validateSignature(value:unknown):Signature {
   if(count<3||distance<10) throw new Error('Palun joonista tellija allkiri.')
   return value as Signature
 }
+
