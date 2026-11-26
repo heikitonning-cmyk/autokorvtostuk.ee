@@ -53,7 +53,7 @@ export async function getBaseLocation() {
 
 export async function getManagerJobs() {
   const supabase = await createClient()
-  const select = '*, invoice:job_invoices(status,due_on), customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
+  const select = '*, photo_stats:job_photos(count), invoice:job_invoices(status,due_on), customer:customers(id,name,phone,email), site:customer_sites!jobs_site_id_fkey(id,customer_id,name,address,city,county,requires_lift,service_notes), work_type:work_types(id,name), operator:users!jobs_operator_id_fkey(id,name)'
   return readAllPages((from, to) => supabase
     .from('jobs')
     .select(select)
