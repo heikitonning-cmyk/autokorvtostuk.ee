@@ -8,7 +8,7 @@ import { dateLabel, type DayEntry, type DayJob } from '@/lib/work-days'
 import type { PayrollBalance, PayrollPayment } from '@/lib/payroll-payments'
 import { HoursTabs } from '@/components/HoursTabs'
 import { EmployeeForm } from '@/components/PayrollWorkspace'
-import { payrollPeriod, periodEntries } from '@/lib/payroll-period'
+import { payrollPeriod, periodEntries, periodPayments } from '@/lib/payroll-period'
 import { WorkerPayments } from '@/components/WorkerPayments'
 
 export default async function WorkerPage({params,searchParams}:{params:Promise<{id:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
@@ -29,6 +29,7 @@ export default async function WorkerPage({params,searchParams}:{params:Promise<{
   if(rateHistory.error) throw rateHistory.error
   const balance=balances[0]??{employee_id:id,earned_cents:0,paid_cents:0,balance_cents:0}
   const period=payrollPeriod(query.from,query.to), selected=periodEntries(entries,period)
+  const paidInPeriod=periodPayments(payments,period), periodBalance=selected.cents-paidInPeriod
   return <div className="page day-page stack-lg"><Link href="/manager/time" className="back-link">← Kõik töölised</Link><div><p className="eyebrow">Tööline</p><h1>{employee.data.name}</h1></div><HoursTabs view="workers"/>
     {(query.saved||query.paymentSaved)&&<p className="alert success">Muudatus salvestatud. Palga jääk on uuendatud.</p>}
     <section className="detail-card payroll-balance-grid"><div><span>Teenitud kokku</span><strong>{euros(balance.earned_cents)}</strong></div><div><span>Makstud kokku</span><strong>{euros(balance.paid_cents)}</strong></div><div className="payroll-due"><span>{balance.balance_cents<0?'Ettemaks':'Saada'}</span><strong>{euros(Math.abs(balance.balance_cents))}</strong></div></section>
@@ -45,6 +46,8 @@ export default async function WorkerPage({params,searchParams}:{params:Promise<{
       {period.error?<p className="alert danger" role="alert">{period.error}</p>:<>
         <p className="muted">{period.from||period.to?`${period.from?dateLabel(period.from):'Algusest'} – ${period.to?dateLabel(period.to):'tänaseni ja edasi'}`:'Kõik sisestatud tööpäevad'}. Arvestus tööpäeva kuupäeva järgi.</p>
         <div className="payroll-balance-grid"><div><span>Tööpäevi</span><strong>{selected.days}</strong></div><div><span>Tunde perioodil</span><strong>{hours(selected.minutes)}</strong></div><div><span>Teenitud perioodil</span><strong>{euros(selected.cents)}</strong></div></div>
+        <div className="payroll-balance-grid"><div><span>Makstud perioodil</span><strong>{euros(paidInPeriod)}</strong></div><div className={periodBalance<0?'payroll-advance':'payroll-due'}><span>Perioodi jääk</span><strong>{euros(periodBalance)}</strong></div></div>
+        <small className="muted">Perioodi jääk = perioodil teenitud tasu − samal perioodil makstud summa (makse kuupäeva järgi). Varasem jääk ei sisaldu. Miinus tähendab, et perioodil maksti rohkem kui teeniti.</small>
         {!!selected.running&&<p className="muted">Lõpetamata ajakirjeid: {selected.running}. Nende tunnid ja tasu lisanduvad pärast lõpetamist.</p>}
       </>}
       <small className="muted">Ajavahemik ei muuda kogu palgajääki ega maksete ajalugu.</small>

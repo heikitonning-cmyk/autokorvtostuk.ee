@@ -15,3 +15,9 @@ export function periodEntries<T extends Pick<TimeEntry, 'work_date' | 'paid_minu
   const finished = visible.filter(e => e.paid_minutes !== null && e.wage_cents !== null)
   return { entries: visible, ...totals(finished), days: new Set(visible.map(e => e.work_date)).size, running: visible.length - finished.length }
 }
+
+/** Payments follow their paid date, not the work dates they may settle. */
+export function periodPayments(payments: { paid_date: string; amount_cents: number; voided_at: string | null }[], period: ReturnType<typeof payrollPeriod>) {
+  if (period.error) return 0
+  return payments.filter(p => !p.voided_at && (!period.from || p.paid_date >= period.from) && (!period.to || p.paid_date <= period.to)).reduce((sum, p) => sum + p.amount_cents, 0)
+}
